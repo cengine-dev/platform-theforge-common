@@ -1,0 +1,31 @@
+// Degrau 3 da PoC sprites: vertex shader do batcher. Posicao ja em NDC
+// (projecao pixels -> NDC na CPU, no ForgeSpriteUi), UV apontando para a
+// regiao do atlas e cor de tint por vertice (R8G8B8A8_UNORM no buffer, o
+// input assembler entrega float4 0..1).
+
+#include "sprite.srt.h"
+
+STRUCT(VSInput)
+{
+    DATA(float2, Position, POSITION);
+    DATA(float2, UV, TEXCOORD0);
+    DATA(float4, Color, TEXCOORD1);
+};
+
+STRUCT(VSOutput)
+{
+    DATA(float4, Position, SV_Position);
+    DATA(float2, UV, TEXCOORD0);
+    DATA(float4, Color, COLOR);
+};
+
+ROOT_SIGNATURE(DefaultRootSignature)
+VSOutput VS_MAIN(VSInput In)
+{
+    INIT_MAIN;
+    VSOutput Out;
+    Out.Position = float4(In.Position, 0.0f, 1.0f);
+    Out.UV = In.UV;
+    Out.Color = In.Color;
+    RETURN(Out);
+}

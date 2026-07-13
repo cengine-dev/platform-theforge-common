@@ -7,7 +7,7 @@ The Forge usado pelos jogos de estudo.
 
 | # | Task | Status | Categoria |
 |---|------|--------|-----------|
-| 01 | [Extrair pontes The Forge reutilizaveis](01-extract-forge-sprite-ui.md) | todo | Plataforma |
+| 01 | [Extrair pontes The Forge reutilizaveis](01-extract-forge-sprite-ui.md) | done (0.1.0) | Plataforma |
 
 ## Regra pratica
 

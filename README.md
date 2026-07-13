@@ -18,19 +18,57 @@ Separar responsabilidades entre os projetos:
 - jogos (`8puzzle`, `spaceinvaders`, `asteroids`, ...): dominio, regras,
   cenas concretas e assets de cada jogo.
 
-## Candidatos a extracao
+## Conteudo (0.1.0)
 
-Os primeiros candidatos vieram da PoC do Space Invaders:
+Extraido da PoC do Space Invaders (task 01), com o vocabulario de jogo
+convertido em configuracao:
 
-- `ForgeUi`: ponte de texto/input/hints para cenas The Forge.
+- `TheForgeWindowManager`: o casco completo — The Forge como biblioteca atras
+  do port `IWindowManager` da cengine (>= 0.5.0). Janela Win32 propria,
+  renderer, fontes, swapchain com resize, input via WndProc e o par
+  `update()`/`present()` envolvendo as fases do jogo. Configurado por
+  `TheForgeWindowDesc` (nome, tamanho, fonte, atlas, cor de clear).
+- `ForgeUi`: ponte de texto/input/hints para cenas The Forge. Fila de edges
+  (`readKey`) + estado segurado generico por tecla (`isHeld`/`heldAxis` —
+  cada jogo compoe seu esquema de controles).
 - `ForgeSpriteUi`: sprite batcher 2D com atlas, tint e flush por lote.
-- `Format.h`: utilitarios pequenos de formatacao usados por cenas.
-- convencoes de shader FSL/SRT e ciclo `Load/Unload`.
-- tooling de atlas/texturas DDS, se ficar generico o bastante.
+  Configurado por `SpriteBatcherDesc` (atlas, capacidade); a tabela de
+  regioes e do jogo. `atlasPath` nulo desliga o batcher (jogo so de texto).
+- `Shaders/FSL`: shaders do batcher (`sprite.vert/frag.fsl` + `sprite.srt.h`)
+  e `Shaders.list` com os rootsigs padrao.
+- `Format.h`: utilitarios pequenos de formatacao usados por cenas (std puro).
+
+## Estrutura e consumo
+
+```
+src/TheForgeCommon/          <- adicionar ao include path do jogo
+  TheForgeWindowManager.h/.cpp   (depende de cengine + The Forge)
+  ForgeUi.h/.cpp                 (depende de The Forge)
+  ForgeSpriteUi.h/.cpp           (depende de The Forge)
+  Format.h                       (std puro)
+  Shaders/FSL/                   (Shaders.list para o passo FSL do jogo)
+```
+
+O consumo segue a receita dos jogos (vcxproj MSBuild, layout de checkouts
+irmaos na mesma pasta — `The-Forge`, `cengine`, este repo e o jogo):
+
+1. incluir `src/TheForgeCommon` no include path (os includes internos sao
+   relativos: `"ForgeUi.h"`, `"Shaders/FSL/sprite.srt.h"`);
+2. compilar os tres `.cpp` junto do jogo;
+3. apontar o passo FSL para `src/TheForgeCommon/Shaders/FSL/Shaders.list`
+   (o `#include` do `defaults.h` assume o layout de checkouts irmaos) — ou
+   copiar/estender a lista se o jogo tiver shaders proprios;
+4. o jogo continua dono de `PathStatement.txt`, `gpu.cfg`, fontes e atlas
+   (`TheForgeWindowDesc` recebe os caminhos).
 
 Nada deve ser promovido para ca apenas por parecer reutilizavel. O codigo deve
 entrar quando existir um consumidor real alem do jogo original ou quando uma
 nova PoC precisar da mesma ponte com pouca variacao.
+
+> **Jogos estacionados:** `8puzzle` e `spaceinvaders` NAO migram para este
+> repo — ficaram congelados como documentacao viva (decisao registrada no
+> ADR 0003 da cengine). As copias deles sao a evidencia de duplicacao que
+> justificou a extracao; o primeiro consumidor real e o `asteroids`.
 
 ## Principios
 

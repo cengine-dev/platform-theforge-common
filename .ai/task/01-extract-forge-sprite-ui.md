@@ -1,6 +1,7 @@
 # 01 - Extrair pontes The Forge reutilizaveis
 
-- **Status:** todo
+- **Status:** done (0.1.0 — degraus 1 e 2; degraus 3/4 redefinidos: o
+  primeiro consumidor sera o asteroids, ver "Decisoes registradas")
 - **Prioridade:** media - a necessidade apareceu com `spaceinvaders` e tende a
   crescer com os proximos jogos 2D.
 - **Categoria:** Plataforma
@@ -67,6 +68,32 @@ Pontos a decidir:
 - como expor estatisticas de frame;
 - como integrar flush automatico antes de texto.
 
+### Decisoes registradas (2026-07-13, 0.1.0)
+
+- **Namespaces mantidos** (`forgeui`, `forgesprite`): sao palavras de
+  plataforma, nao de jogo, e preservam a continuidade com as copias
+  congeladas nos jogos (documentacao viva — facil de diffar).
+- **API global mantida** (como a PoC): o proprio The Forge e um-por-processo
+  nesse desenho (WndProc estatico, `gWindow` global do fontstash); um objeto
+  instanciavel seria mentira de API. Reavaliar so se um consumidor precisar
+  de duas janelas.
+- **Escopo alargado alem do ForgeSpriteUi**: `ForgeUi` e o
+  `TheForgeWindowManager` inteiro tambem entraram — o casco e a peca com
+  mais valor de reuso e ja nasceu configuravel (`TheForgeWindowDesc`).
+- **Estado segurado generalizado**: `pushHeldState(moveAxis, fireHeld)` (o
+  formato do canhao do spaceinvaders) virou `pushHeldKey(Key, bool)` +
+  `isHeld(Key)` + `heldAxis(neg, pos)`; o WndProc rastreia setas + espaco.
+  `Key::Space` existe SO no estado segurado (na fila de edges o espaco
+  continua chegando como `Key::Char ' '`).
+- **Batcher opt-in**: `SpriteBatcherDesc.atlasPath == nullptr` desliga tudo
+  (jogo so de texto nao paga pelo pipeline de sprites).
+- **Estatisticas/flush**: mantidos como na PoC (`lastFrameStats()`; o
+  `drawText` flusha o lote pendente — camadas por ordem de chamada).
+- **Degraus 3/4 redefinidos**: 8puzzle e spaceinvaders ficaram congelados
+  como historia (nao migram — decisao do dono do projeto, ADR 0003 da
+  cengine). O aceite de consumidor real passa para o **asteroids**, primeiro
+  jogo a consumir este repo; a validacao visual/regressao acontece la.
+
 ### Degrau 2 - extracao mecanica
 
 Copiar a implementacao do `spaceinvaders`, remover nomes de jogo e adaptar para
@@ -100,12 +127,18 @@ segundo consumidor, registrar o aprendizado antes de estabilizar.
 
 ## Criterios de Aceite
 
-- [ ] README documenta objetivo e fronteiras do repo.
-- [ ] API do sprite batcher nao contem vocabulario de jogo.
-- [ ] `spaceinvaders` consome o common sem regressao visual.
-- [ ] Recursos The Forge continuam com ciclo de vida claro:
+- [x] README documenta objetivo e fronteiras do repo (+ estrutura e receita
+      de consumo).
+- [x] API do sprite batcher nao contem vocabulario de jogo (tabela de
+      regioes removida; atlas/limite viram `SpriteBatcherDesc`).
+- [x] ~~`spaceinvaders` consome o common sem regressao visual~~ — jogos
+      congelados como historia; o aceite passa para o `asteroids` (primeiro
+      consumidor, valida na task de bootstrap daquele repo).
+- [x] Recursos The Forge continuam com ciclo de vida claro:
       `init/load/begin/flush/unload/exit`.
-- [ ] O codigo permanece isolado do `cengine`.
+- [x] O sprite batcher e o ForgeUi permanecem isolados do `cengine`; o
+      `TheForgeWindowManager` depende do port `IWindowManager` por natureza
+      (e o adaptador cengine<->The Forge — decisao registrada acima).
 
 ## Riscos
 

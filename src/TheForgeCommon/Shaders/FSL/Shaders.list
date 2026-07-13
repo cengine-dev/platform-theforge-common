@@ -1,0 +1,15 @@
+#include "../../../../../The-Forge/Common_3/Graphics/FSL/defaults.h"
+
+#rootsig default.rootsig
+#end
+
+#rootsig compute.rootsig
+#end
+
+#vert sprite.vert
+#include "sprite.vert.fsl"
+#end
+
+#frag sprite.frag
+#include "sprite.frag.fsl"
+#end
