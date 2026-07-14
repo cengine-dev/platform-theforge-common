@@ -1,0 +1,17 @@
+# IDEs
+.idea/
+.vs/
+.vscode/
+*.vcxproj.user
+
+# Build
+out/
+build/
+cmake-build-*/
+
+# Binarios
+*.obj
+*.exe
+*.dll
+*.lib
+*.pdb
