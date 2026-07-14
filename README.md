@@ -18,7 +18,23 @@ Separar responsabilidades entre os projetos:
 - jogos (`8puzzle`, `spaceinvaders`, `asteroids`, ...): dominio, regras,
   cenas concretas e assets de cada jogo.
 
-## Conteudo (0.2.0)
+## Conteudo (0.3.0)
+
+### Novo na 0.3.0
+
+- `ForgeUi` **deixou de ter vocabulario proprio**: `Key`/`KeyEvent` e o contrato
+  (fila de edges + estado segurado) subiram para a `cengine::input` (task 20 da
+  engine, >= 0.8.0). Esta ponte guarda o que sempre foi dela — a **captura** (o
+  WndProc traduzindo `VK_*` para `Key`) — e delega o resto a um
+  `cengine::input::Keyboard`.
+
+  Era a **quarta copia** do mesmo enum no ecossistema. Os aliases
+  (`using Key = cengine::input::Key;`) mantiveram a ergonomia: o asteroids
+  compilou sem mudar uma linha de cena. Quem quiser falar com a porta direto tem
+  `forgeui::keyboard()`.
+
+  Consumo: incluir `$(CengineRoot)modules/input/include` e compilar
+  `modules/input/src/Keyboard.cpp`.
 
 ### Novo na 0.2.0
 

@@ -1,49 +1,31 @@
 #include "ForgeUi.h"
 
-#include <cstddef>
-#include <vector>
-
 #include "ForgeLineUi.h"
 #include "ForgeSpriteUi.h"
 
 namespace {
 
-// estado segurado por tecla, publicado por pushHeldKey (WndProc do casco)
-constexpr size_t kKeyCount = static_cast<size_t>(Key::Other) + 1;
-bool gHeld[kKeyCount] = {};
-
-// Fila de eventos: o casco enfileira no update; as cenas consomem 1 por input().
-constexpr size_t      kQueueMax = 32;
-std::vector<KeyEvent> gQueue;
+// A fila de edges e o estado segurado agora sao MECANISMO DA ENGINE
+// (cengine::input::Keyboard, task 20 / 0.8.0). Esta ponte so guarda a instancia
+// e continua fazendo o que so ela pode fazer: capturar.
+cengine::input::Keyboard gKeyboard;
 
 Cmd*     gCmd = NULL;
 float    gWidth = 0.0f;
 float    gHeight = 0.0f;
 uint32_t gFontID = 0;
 
-void push(const Key key, const char character = '\0')
-{
-    if (gQueue.size() < kQueueMax)
-    {
-        gQueue.push_back({ key, character });
-    }
-}
-
 } // namespace
 
 namespace forgeui {
 
-void pushKey(const KeyEvent event) { push(event.key, event.character); }
+cengine::input::Keyboard& keyboard() { return gKeyboard; }
 
-void pushHeldKey(const Key key, const bool held) { gHeld[static_cast<size_t>(key)] = held; }
+void pushKey(const KeyEvent event) { gKeyboard.pushKey(event); }
 
-void clearHeldKeys()
-{
-    for (bool& held : gHeld)
-    {
-        held = false;
-    }
-}
+void pushHeldKey(const Key key, const bool held) { gKeyboard.pushHeldKey(key, held); }
+
+void clearHeldKeys() { gKeyboard.clearHeldKeys(); }
 
 void beginDraw(Cmd* cmd, const float width, const float height, const uint32_t fontID)
 {
@@ -53,23 +35,11 @@ void beginDraw(Cmd* cmd, const float width, const float height, const uint32_t f
     gFontID = fontID;
 }
 
-KeyEvent readKey()
-{
-    if (gQueue.empty())
-    {
-        return {};
-    }
-    const KeyEvent event = gQueue.front();
-    gQueue.erase(gQueue.begin());
-    return event;
-}
+KeyEvent readKey() { return gKeyboard.readKey(); }
 
-bool isHeld(const Key key) { return gHeld[static_cast<size_t>(key)]; }
+bool isHeld(const Key key) { return gKeyboard.isHeld(key); }
 
-float heldAxis(const Key negative, const Key positive)
-{
-    return (isHeld(positive) ? 1.0f : 0.0f) - (isHeld(negative) ? 1.0f : 0.0f);
-}
+float heldAxis(const Key negative, const Key positive) { return gKeyboard.heldAxis(negative, positive); }
 
 float screenWidth() { return gWidth; }
 float screenHeight() { return gHeight; }

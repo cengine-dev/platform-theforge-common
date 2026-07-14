@@ -7,41 +7,34 @@
 // casco. Teclado em fila (no maximo um evento consumido por input()) e
 // desenho em modo imediato.
 //
-// O que era formato de um jogo especifico (eixo de movimento + gatilho do
-// spaceinvaders) virou mecanismo: teclas SEGURADAS genericas por Key
-// (pushHeldKey/isHeld/heldAxis) — cada jogo compoe seu proprio esquema de
-// controles em cima.
+// O VOCABULARIO e o CONTRATO de teclado nao moram mais aqui: subiram para a
+// `cengine::input` (task 20 da engine, 0.8.0) — eram a quarta copia do mesmo
+// enum no ecossistema. Esta ponte guarda o que sempre foi dela: a CAPTURA (o
+// WndProc traduzindo VK_* para Key) e a ergonomia global das cenas.
+//
+// Os aliases abaixo mantem `Key`/`KeyEvent` sem qualificacao no codigo das
+// cenas — nenhum jogo precisou mudar uma linha.
 
 #include <cstdint>
 #include <string>
+
+#include <cengine/input/Keyboard.hpp>
 
 // The-Forge (o include path do projeto aponta para a raiz do The-Forge).
 #include "Common_3/Application/Interfaces/IFont.h"
 #include "Common_3/Graphics/Interfaces/IGraphics.h"
 
-// Vocabulario de teclas compartilhado entre plataformas dos jogos de estudo.
-// Space so aparece no estado SEGURADO (isHeld): na fila de edges o espaco
-// chega como Key::Char com character ' ' (via WM_CHAR), como sempre foi.
-enum class Key {
-    None,      // nenhuma tecla pendente
-    Up,
-    Down,
-    Left,
-    Right,
-    Space,
-    Enter,
-    Escape,
-    Backspace,
-    Char,      // caractere imprimivel (ver KeyEvent::character)
-    Other
-};
-
-struct KeyEvent {
-    Key key = Key::None;
-    char character = '\0'; // valido quando key == Key::Char
-};
+// Space so aparece no estado SEGURADO (isHeld): na fila de edges o espaco chega
+// como Key::Char com character ' ' (via WM_CHAR), como sempre foi.
+using Key = cengine::input::Key;
+using KeyEvent = cengine::input::KeyEvent;
 
 namespace forgeui {
+
+// O teclado da cengine por tras da fachada global — exposto para quem quiser
+// falar com a porta direto (uma cena que receba `cengine::input::Keyboard&` em
+// vez de chamar as funcoes globais).
+[[nodiscard]] cengine::input::Keyboard& keyboard();
 
 // Paleta (ABGR, formato do FontDrawDesc::mFontColor): mesma intencao de cores
 // das plataformas de terminal dos jogos de estudo (ciano para titulos, ambar
