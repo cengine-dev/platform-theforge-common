@@ -18,7 +18,19 @@ Separar responsabilidades entre os projetos:
 - jogos (`8puzzle`, `spaceinvaders`, `asteroids`, ...): dominio, regras,
   cenas concretas e assets de cada jogo.
 
-## Conteudo (0.4.0)
+## Conteudo (0.5.0)
+
+### Novo na 0.5.0
+
+- `forgeaudio` (`ForgeAudio.{h,cpp}`) — o backend XAudio2 da porta
+  `cengine::audio::Player` (task 24 da cengine), extraido das copias identicas
+  do breakout e do mario-bros: COM, pool de 8 vozes round-robin (PCM 16-bit
+  mono 44.1kHz) e os helpers de sintese `synth`/`concat`. O jogo entrega a
+  TABELA de samples no `init` (o enum `Sound` e as receitas ficam no jogo).
+  Sem device, o jogo roda mudo (degradacao normal do contrato da porta).
+- `tools/Write-Dds.ps1` — o escritor DDS (RGBA8 sem compressao, header DX10)
+  que fechava os tools de atlas dos jogos, agora dot-sourceavel do checkout
+  irmao. A arte de cada atlas segue no tool do jogo.
 
 ### Novo na 0.4.0
 

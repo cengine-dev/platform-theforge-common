@@ -1,7 +1,13 @@
 # 05 - forgeaudio: backend XAudio2 da porta de audio da cengine
 
-- **Status:** candidata (NAO implementar ainda — o gate de evidencias JA
-  disparou, falta o consumidor de validacao: o proximo jogo com som)
+- **Status:** done (0.5.0) — extraida em 2026-07-18 (`ForgeAudio.{h,cpp}`,
+  namespace `forgeaudio`) e validada pelo zelda jogando (task 06 de la,
+  fatia B).
+- **Decisao do dono (2026-07-18):** o forgeaudio mora NESTE repo (nao em repo
+  proprio) — o common ja e na pratica o casco Windows dos jogos, e o backend
+  de audio e o mesmo tipo de peca que o teclado da task 03 (backend Windows de
+  uma porta da cengine). O veto da task 06 do breakout fica respondido: o
+  criterio nao e "e The-Forge?", e "e o casco Windows dos jogos?".
 - **Categoria:** Ponte de plataforma (Windows)
 - **Registrada em:** 2026-07-17 (revisao pos-cengine-0.9.0)
 

@@ -1,7 +1,9 @@
 # 06 - Escritor de DDS compartilhado (tools/)
 
-- **Status:** candidata (NAO implementar ainda — 3 copias identicas ja existem,
-  falta o consumidor de validacao: o proximo jogo com atlas)
+- **Status:** done (0.5.0) — extraida em 2026-07-18 (`tools/Write-Dds.ps1`);
+  o zelda dot-sourceia e o atlas regenerado saiu BYTE A BYTE identico
+  (sha256 conferido). Nota: o zelda chegou a carregar a 4a copia no degrau 5
+  dele (o gate dizia degrau 6); a extracao a removeu no degrau seguinte.
 - **Categoria:** Ferramentas (nao entra em lib linkada; e um .ps1 dot-sourced)
 - **Registrada em:** 2026-07-17 (revisao pos-cengine-0.9.0)
 
