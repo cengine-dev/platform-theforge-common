@@ -28,6 +28,19 @@ exercitando o resultado:
   e IDENTICO nos tools de atlas de spaceinvaders, breakout e mario; a ARTE de
   cada atlas e do jogo.
 
+## Observacoes (nao sao candidatas ainda — 1a evidencia so)
+
+- **`forgesprite` e um atlas SO** (`ForgeSpriteUi.cpp`: `Texture* gAtlasTexture`
+  global, setado uma vez em `init()`). O Star Force (2026-07-22, tela de menu
+  com arte gerada fora do pipeline pixel-art da gameplay: logo/botoes/fundo)
+  bateu nesse teto — resolveu SEM mexer aqui, crescendo o proprio atlas do
+  jogo (128x128 -> 800x788) e usando `drawSpriteRect` (task 04, ja promovida)
+  pra esticar regioes de tamanhos bem diferentes no mesmo desenho. Registrado
+  so pra memoria: se um segundo jogo precisar de duas fontes de arte que NAO
+  cabem bem no mesmo atlas (paletas/resolucoes muito diferentes), a questao
+  "multiplos atlas/texturas" volta — por ora, 1 evidencia, resolvida sem
+  atrito real, nao e candidata.
+
 ## Regra pratica
 
 Este repo nao e a engine. Ele pode conhecer The Forge, mas nao deve conhecer
