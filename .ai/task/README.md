@@ -28,6 +28,19 @@ exercitando o resultado:
   e IDENTICO nos tools de atlas de spaceinvaders, breakout e mario; a ARTE de
   cada atlas e do jogo.
 
+- **07 (helpers de pintura dos tools de atlas)** — `Set-Pixel` esta escrito a
+  mao em CINCO tools (breakout, mario-bros, zelda, starforce, delve) e
+  `Fill-Rect` em tres, sempre identicos: escrever RGBA num `byte[]` com
+  checagem de limites, e preencher retangulo. Registrado na revisao pos-Delve
+  (2026-07-27). Passa o gate de evidencias com folga e o precedente e exato —
+  o `Write-Dds.ps1` (task 06) foi extraido com TRES copias. A diferenca e o
+  tamanho: aquele era o header DDS byte a byte, este sao ~15 linhas de `for`
+  aninhado, entao o valor e baixo. Mesma formula das tasks 05/06: **o proximo
+  jogo que escrever um atlas EXTRAI, nao copia**; os cinco tools existentes
+  NAO migram (o atlas deles ja esta gerado e versionado, mesma regra que valeu
+  na extracao do Write-Dds). A PALETA e os retangulos de cada jogo seguem
+  sendo identidade do jogo.
+
 ## Observacoes (nao sao candidatas ainda — 1a evidencia so)
 
 - **`forgesprite` e um atlas SO** (`ForgeSpriteUi.cpp`: `Texture* gAtlasTexture`
@@ -40,6 +53,19 @@ exercitando o resultado:
   cabem bem no mesmo atlas (paletas/resolucoes muito diferentes), a questao
   "multiplos atlas/texturas" volta — por ora, 1 evidencia, resolvida sem
   atrito real, nao e candidata.
+
+- **`forgeui::drawText` tem um TETO de chamadas por quadro** — ~143 num mesmo
+  quadro estouram o renderizador de fonte do The-Forge (glifos "fantasma"
+  acesos com a cor errada em posicoes fixas, independentes do que o jogo
+  pediu); 108 e 115 passam. Medido no Delve (2026-07-25), que desenhava uma
+  grade 13x11 celula a celula. Junto veio o segundo limite, independente do
+  The-Forge: **a fonte nao e monoespacada**, entao agrupar celulas iguais numa
+  string so — a saida obvia para o primeiro limite — desalinha em silencio.
+  Nao e candidata a nada: nao ha mecanismo novo para extrair, e a saida certa
+  ja existe (`forgesprite`, que desenha o lote em uma chamada). **A acao foi
+  DOCUMENTAR**, no `ForgeUi.h`, junto da declaracao do `drawText` — o percurso
+  custou dois rascunhos errados e um bug que parecia certo, e o proximo jogo
+  nao precisa repetir.
 
 ## Regra pratica
 

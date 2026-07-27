@@ -86,6 +86,27 @@ float screenHeight();
 
 [[nodiscard]] float textWidth(const std::string& text, float fontSize);
 
+// DOIS LIMITES medidos no Delve (2026-07-25, task 02 daquele repo), que
+// custaram dois rascunhos errados e um bug que PARECIA certo. Valem para
+// qualquer jogo que desenhe muita coisa em texto imediato:
+//
+// 1. **teto de chamadas por quadro.** ~143 chamadas de `drawText` num mesmo
+//    quadro estouram o renderizador de fonte do The-Forge: aparecem glifos
+//    "fantasma" acesos com a COR ERRADA em posicoes fixas da tela,
+//    independentes do que o jogo pediu (reproduzido por screenshot). 108 e
+//    115 chamadas passam; o ponto exato entre 115 e 143 nao foi medido. Uma
+//    grade grande desenhada celula a celula chega la sem esforco — o Delve
+//    tinha 13x11. Se precisar de muitos elementos, use o `forgesprite`: o
+//    batcher desenha o lote inteiro em UMA chamada.
+//
+// 2. **a fonte NAO e monoespacada.** Uma string de N caracteres nao ocupa N
+//    vezes a largura de um: no Delve o avanco do '#' era ~15px onde a grade
+//    reservava 26. Agrupar tiles iguais numa string so (a saida obvia para o
+//    limite 1) desalinha em silencio — a corrida de 10 paredes terminava
+//    perto do pixel 150 em vez do 260, e o vao resultante era
+//    indistinguivel de chao na tela enquanto o jogo o tratava como parede.
+//    Para grade de passo fixo, a posicao tem que vir da aritmetica da grade,
+//    nunca do avanco da fonte.
 void drawText(const std::string& text, float x, float y, float fontSize, uint32_t colorAbgr);
 void drawTextCentered(const std::string& text, float y, float fontSize, uint32_t colorAbgr);
 
