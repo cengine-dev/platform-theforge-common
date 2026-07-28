@@ -18,7 +18,21 @@ Separar responsabilidades entre os projetos:
 - jogos (`8puzzle`, `spaceinvaders`, `asteroids`, ...): dominio, regras,
   cenas concretas e assets de cada jogo.
 
-## Conteudo (0.6.0)
+## Conteudo (0.7.0)
+
+### Novo na 0.7.0
+
+- `tools/Paint.ps1` — os helpers de pintura dos tools de atlas, extraidos das
+  copias identicas de CINCO jogos (`Set-Pixel` no breakout, mario-bros, zelda,
+  starforce e delve; `Fill-Rect` em tres). Consumidor de validacao: o Bulwark
+  (degrau 07). Os cinco tools existentes nao migram — o atlas deles ja esta
+  gerado e versionado, mesma regra da extracao do `Write-Dds`.
+
+  **O que mudou na extracao:** as copias liam `$script:texW`/`$script:pixels`
+  do escopo de quem chamava — funciona por acidente e quebra em silencio se o
+  tool renomear a variavel. Virou um CANVAS explicito
+  (`New-AtlasCanvas -Width -Height`), passado as funcoes. A ARTE de cada atlas
+  segue no tool do jogo; isto e so o pincel.
 
 ### Novo na 0.6.0
 
