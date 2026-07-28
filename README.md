@@ -18,7 +18,20 @@ Separar responsabilidades entre os projetos:
 - jogos (`8puzzle`, `spaceinvaders`, `asteroids`, ...): dominio, regras,
   cenas concretas e assets de cada jogo.
 
-## Conteudo (0.7.0)
+## Conteudo (0.8.0)
+
+### Corrigido na 0.8.0
+
+- **O X da janela nao forja mais um `Escape`.** O `WM_CLOSE` agora marca um
+  pedido de fechamento que a cengine le pelo `IWindowManager::shouldClose()`
+  (0.13.0); o loop para no fim do quadro e o `cleanup()` roda normalmente.
+
+  Ate a 0.7.1 o X empurrava um `Escape` FALSO na fila de teclas, para a cena
+  rotear para a saida. Funcionava por sorte: so nos jogos em que ESC ja
+  significava "sair". Nos que usam ESC para "voltar ao menu" — o Delve e o
+  Bulwark — clicar no X levava ao MENU. "O jogador pediu para sair" e "o
+  sistema mandou fechar" nao sao a mesma coisa e nao podem dividir o mesmo
+  canal. Requer cengine >= 0.13.0.
 
 ### Novo na 0.7.0
 

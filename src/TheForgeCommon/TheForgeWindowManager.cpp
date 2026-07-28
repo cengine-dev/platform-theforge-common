@@ -64,6 +64,10 @@ bool    gResizePending = false;
 int32_t gResizeWidth = 0;
 int32_t gResizeHeight = 0;
 
+// O usuario pediu para fechar a janela (X, alt-F4). Lido pelo
+// `shouldClose()`, que a cengine consulta no fim de cada quadro.
+bool gCloseRequested = false;
+
 // cor de clear do swapchain (vinda da desc; lida pelo addGameSwapChain)
 float gClearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 
@@ -186,10 +190,17 @@ LRESULT CALLBACK wmWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         }
         return 0;
     case WM_CLOSE:
-        // Fechar e decisao do JOGO (cena/router), nao da janela: o X entra na
-        // fila como ESC e a cena roteia para o estado de saida. A janela so e
-        // destruida no cleanup(), depois do loop da cengine terminar.
-        forgeui::pushKey({ Key::Escape, '\0' });
+        // Fechar a janela e um FATO DA PLATAFORMA, e desde a cengine 0.13.0
+        // ele tem canal proprio: `IWindowManager::shouldClose()`. O loop para
+        // no fim do quadro e o `cleanup()` roda normalmente.
+        //
+        // Ate a 0.7.1 isto empurrava um `Escape` FALSO na fila de teclas, para
+        // a cena rotear para a saida. Funcionava por sorte: num jogo em que
+        // ESC significa "voltar ao menu" — o caso do Delve e do Bulwark —
+        // clicar no X levava ao menu em vez de fechar. "O jogador pediu para
+        // sair" e "o sistema mandou fechar" nao sao a mesma coisa e nao podem
+        // dividir o mesmo canal.
+        gCloseRequested = true;
         return 0;
     default:
         break;
@@ -502,6 +513,8 @@ void TheForgeWindowManager::present()
     gFrameCmd = NULL;
     gFrameIndex = (gFrameIndex + 1) % kDataBufferCount;
 }
+
+bool TheForgeWindowManager::shouldClose() const { return gCloseRequested; }
 
 void TheForgeWindowManager::cleanup()
 {

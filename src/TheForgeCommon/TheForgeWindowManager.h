@@ -63,6 +63,12 @@ public:
     void init() override;
     void update() override;
     void present() override;
+    /// O usuario fechou a janela (X, alt-F4). A cengine consulta isto no fim
+    /// de cada quadro e encerra o loop — ver `IWindowManager::shouldClose`
+    /// (0.13.0). Ate a 0.7.1 o X era traduzido para um `Escape` na fila de
+    /// teclas, o que levava ao MENU nos jogos em que ESC significa "voltar".
+    [[nodiscard]] bool shouldClose() const override;
+
     void cleanup() override;
 
 private:
