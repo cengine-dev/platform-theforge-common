@@ -18,6 +18,12 @@
 
 #include <cstdlib>
 
+// GET_X_LPARAM / GET_Y_LPARAM do WM_MOUSEMOVE e dos cliques. Vem depois dos
+// headers do The-Forge (que ja puxam windows.h) porque este so acrescenta as
+// macros de extracao — e elas fazem o sinal certo em telas multiplas, coisa
+// que o LOWORD/HIWORD cru erra em coordenada negativa.
+#include <windowsx.h>
+
 #include "Common_3/Utilities/Interfaces/IMemory.h" // deve ser o ultimo include
 
 // Cola minima do sistema de fontes (aprendizado da fase 2 do 8puzzle):
@@ -142,6 +148,18 @@ LRESULT CALLBACK wmWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_KILLFOCUS:
         // alt-tab com tecla presa: solta tudo (o WM_KEYUP nunca chegara)
         forgeui::clearHeldKeys();
+        return 0;
+    case WM_MOUSEMOVE:
+        // Coordenadas da area util, o MESMO espaco em que o jogo desenha —
+        // e por isso que traduzir para o mundo dele e trabalho dele.
+        forgeui::pushMousePosition((float)GET_X_LPARAM(lParam), (float)GET_Y_LPARAM(lParam));
+        return 0;
+    case WM_LBUTTONDOWN:
+    case WM_RBUTTONDOWN:
+        // O clique carrega a posicao DO MOMENTO: o ponteiro pode andar entre
+        // o aperto e o quadro em que a cena o consome.
+        forgeui::pushMouseClick({ msg == WM_LBUTTONDOWN ? forgeui::MouseButton::Left : forgeui::MouseButton::Right,
+                                  (float)GET_X_LPARAM(lParam), (float)GET_Y_LPARAM(lParam) });
         return 0;
     case WM_CHAR:
         // Caracteres imprimiveis (o WM_CHAR ja aplica shift/layout do teclado).

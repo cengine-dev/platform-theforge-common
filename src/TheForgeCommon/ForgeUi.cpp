@@ -1,5 +1,8 @@
 #include "ForgeUi.h"
 
+#include <cstddef>
+#include <vector>
+
 #include "ForgeLineUi.h"
 #include "ForgeSpriteUi.h"
 
@@ -9,6 +12,17 @@ namespace {
 // (cengine::input::Keyboard, task 20 / 0.8.0). Esta ponte so guarda a instancia
 // e continua fazendo o que so ela pode fazer: capturar.
 cengine::input::Keyboard gKeyboard;
+
+// O mouse NAO tem porta na engine (ver ForgeUi.h): estado e fila vivem aqui,
+// com a mesma disciplina da fila de teclas — posicao e estado continuo,
+// clique e edge, um por aperto.
+float                   gMouseX = 0.0f;
+float                   gMouseY = 0.0f;
+std::vector<forgeui::MouseClick> gMouseClicks;
+
+// Mesmo teto da fila de teclas, e pelo mesmo motivo: se ninguem consome
+// (cena travada, janela em background), a fila nao cresce sem limite.
+constexpr size_t kMouseQueueMax = 16;
 
 Cmd*     gCmd = NULL;
 float    gWidth = 0.0f;
@@ -27,6 +41,21 @@ void pushHeldKey(const Key key, const bool held) { gKeyboard.pushHeldKey(key, he
 
 void clearHeldKeys() { gKeyboard.clearHeldKeys(); }
 
+void pushMousePosition(const float x, const float y)
+{
+    gMouseX = x;
+    gMouseY = y;
+}
+
+void pushMouseClick(const MouseClick click)
+{
+    if (gMouseClicks.size() >= kMouseQueueMax)
+    {
+        return; // fila cheia: o evento novo cai
+    }
+    gMouseClicks.push_back(click);
+}
+
 void beginDraw(Cmd* cmd, const float width, const float height, const uint32_t fontID)
 {
     gCmd = cmd;
@@ -40,6 +69,21 @@ KeyEvent readKey() { return gKeyboard.readKey(); }
 bool isHeld(const Key key) { return gKeyboard.isHeld(key); }
 
 float heldAxis(const Key negative, const Key positive) { return gKeyboard.heldAxis(negative, positive); }
+
+float mouseX() { return gMouseX; }
+float mouseY() { return gMouseY; }
+
+MouseClick readMouseClick()
+{
+    if (gMouseClicks.empty())
+    {
+        return {};
+    }
+
+    const MouseClick click = gMouseClicks.front();
+    gMouseClicks.erase(gMouseClicks.begin());
+    return click;
+}
 
 float screenWidth() { return gWidth; }
 float screenHeight() { return gHeight; }

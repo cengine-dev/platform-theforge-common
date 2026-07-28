@@ -18,7 +18,28 @@ Separar responsabilidades entre os projetos:
 - jogos (`8puzzle`, `spaceinvaders`, `asteroids`, ...): dominio, regras,
   cenas concretas e assets de cada jogo.
 
-## Conteudo (0.5.1)
+## Conteudo (0.6.0)
+
+### Novo na 0.6.0
+
+- **Mouse** (`ForgeUi.h`) — posicao do ponteiro (`mouseX`/`mouseY`, estado
+  continuo) e fila de cliques (`readMouseClick`, edges, um por aperto),
+  capturados no WndProc (`WM_MOUSEMOVE`, `WM_LBUTTONDOWN`, `WM_RBUTTONDOWN`).
+  Primeiro mouse do ecossistema: os nove jogos ate aqui eram 100% teclado.
+
+  **O vocabulario mora AQUI, nao na `cengine::input`.** O enum de teclas so
+  subiu para a engine quando ja era a QUARTA copia identica nos jogos; o mouse
+  tem UM consumidor (o Bulwark, degrau 05) e nenhuma evidencia de que esta
+  forma seja a certa para o proximo. Se um segundo jogo precisar, a comparacao
+  decide — mesmo caminho que o teclado fez (ADR 0002 da cengine).
+
+  Duas decisoes de desenho que valem para quem for consumir: **posicao e
+  ESTADO, clique e EDGE** (realce sob o cursor precisa de todo quadro;
+  construir precisa de uma vez por aperto), e **o clique carrega a posicao DO
+  MOMENTO** em que aconteceu — o ponteiro pode andar entre o aperto e o quadro
+  em que a cena o le. As coordenadas sao PIXELS da area util, o mesmo espaco
+  do `drawText`: esta ponte nao sabe o que e uma celula, e traduzir para o
+  mundo do jogo e trabalho do jogo.
 
 ### Corrigido na 0.5.1
 

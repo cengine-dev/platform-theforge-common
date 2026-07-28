@@ -49,6 +49,38 @@ inline constexpr uint32_t kDim = 0xff9a9a9a;
 inline constexpr uint32_t kFaint = 0xff5a5a5a;
 } // namespace color
 
+// --- mouse ---
+//
+// O VOCABULARIO do mouse mora AQUI, e nao na `cengine::input`, ao contrario
+// do teclado. O motivo e o ADR 0002: o enum de teclas subiu para a engine
+// quando ja era a QUARTA copia identica espalhada pelos jogos; o mouse tem
+// UM consumidor (o Bulwark, task 05 daquele repo, 2026-07-28) e nenhuma
+// evidencia de que a forma abaixo seja a certa para o proximo. Se um segundo
+// jogo precisar, a comparacao decide se isto vira porta da engine — e ai o
+// caminho e o mesmo que o teclado fez.
+//
+// A ponte guarda o que sempre foi dela: a CAPTURA (o WndProc traduzindo
+// WM_MOUSEMOVE/WM_LBUTTONDOWN) e a ergonomia global das cenas.
+
+enum class MouseButton
+{
+    None,
+    Left,
+    Right,
+};
+
+// Um clique, com a posicao DO MOMENTO em que aconteceu. A posicao vai junto
+// de proposito: o ponteiro pode ter andado entre o clique e o quadro em que a
+// cena o le, e ai "onde eu cliquei" e "onde o mouse esta" sao coisas
+// diferentes. Coordenadas em PIXELS da area util da janela — o mesmo espaco
+// do `drawText`; traduzir para o mundo do jogo e trabalho do jogo.
+struct MouseClick
+{
+    MouseButton button = MouseButton::None;
+    float       x = 0.0f;
+    float       y = 0.0f;
+};
+
 // --- ciclo de vida (chamado pelo casco da plataforma) ---
 
 // Enfileira um evento de tecla vindo do WndProc do casco (WM_KEYDOWN/
@@ -62,6 +94,14 @@ void pushHeldKey(Key key, bool held);
 
 // Solta todas as teclas seguradas (perda de foco: o WM_KEYUP nunca chegara).
 void clearHeldKeys();
+
+// Publica a posicao do ponteiro (WM_MOUSEMOVE do casco), em pixels da area
+// util.
+void pushMousePosition(float x, float y);
+
+// Enfileira um clique (WM_LBUTTONDOWN/WM_RBUTTONDOWN): edges, um evento por
+// aperto — mesma promessa da fila de teclas.
+void pushMouseClick(MouseClick click);
 
 // Publica o alvo de desenho do quadro (chamado no update do casco, antes
 // das fases do jogo).
@@ -80,6 +120,15 @@ KeyEvent readKey();
 // Conveniencia para eixos: -1 quando so `negative` esta segurada, +1 quando
 // so `positive`, 0 nos demais casos. Ex.: heldAxis(Key::Left, Key::Right).
 [[nodiscard]] float heldAxis(Key negative, Key positive);
+
+// Onde o ponteiro esta AGORA, em pixels da area util. Estado continuo: serve
+// para realce sob o cursor, que precisa da posicao todo quadro.
+[[nodiscard]] float mouseX();
+[[nodiscard]] float mouseY();
+
+// Consome no maximo um clique por chamada (fila esvazia 1/quadro), igual ao
+// `readKey`. Sem clique pendente, devolve `MouseButton::None`.
+MouseClick readMouseClick();
 
 float screenWidth();
 float screenHeight();
