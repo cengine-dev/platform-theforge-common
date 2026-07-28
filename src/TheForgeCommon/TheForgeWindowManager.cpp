@@ -144,8 +144,16 @@ LRESULT CALLBACK wmWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         forgeui::clearHeldKeys();
         return 0;
     case WM_CHAR:
-        // caracteres imprimiveis (o WM_CHAR ja aplica shift/layout do teclado)
-        if (wParam >= 32 && wParam < 127)
+        // Caracteres imprimiveis (o WM_CHAR ja aplica shift/layout do teclado).
+        //
+        // O MESMO filtro de auto-repeat do WM_KEYDOWN, e pelo mesmo motivo: a
+        // fila promete UM EVENTO POR APERTO FISICO. Sem ele as duas metades da
+        // fila tinham semanticas diferentes — segurar uma seta mandava um
+        // evento, segurar uma letra mandava um por quadro. Ninguem tinha
+        // batido nisso porque, dos nove jogos, o Bulwark foi o primeiro a
+        // consumir Key::Char por esta ponte (os outros usam so setas, Enter e
+        // ESC); no jogo dele, segurar espaco soltava um inimigo por quadro.
+        if ((lParam & (1 << 30)) == 0 && wParam >= 32 && wParam < 127)
         {
             forgeui::pushKey({ Key::Char, (char)wParam });
         }

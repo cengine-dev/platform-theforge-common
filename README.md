@@ -18,7 +18,17 @@ Separar responsabilidades entre os projetos:
 - jogos (`8puzzle`, `spaceinvaders`, `asteroids`, ...): dominio, regras,
   cenas concretas e assets de cada jogo.
 
-## Conteudo (0.5.0)
+## Conteudo (0.5.1)
+
+### Corrigido na 0.5.1
+
+- **`WM_CHAR` agora filtra auto-repeat**, como o `WM_KEYDOWN` sempre filtrou.
+  A fila de edges promete UM EVENTO POR APERTO FISICO, e as duas metades dela
+  tinham semanticas diferentes: segurar uma seta mandava um evento, segurar
+  uma letra mandava um por quadro. Ninguem tinha batido nisso porque, dos nove
+  jogos, o **Bulwark** foi o primeiro a consumir `Key::Char` por esta ponte —
+  os outros usam so setas, Enter e ESC. No jogo dele, segurar espaco soltava
+  um inimigo por quadro. Validado pelo Bulwark (degrau 03).
 
 ### Novo na 0.5.0
 
