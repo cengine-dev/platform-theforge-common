@@ -19,6 +19,7 @@
 #include <string>
 
 #include <cengine/input/Keyboard.hpp>
+#include <cengine/input/Mouse.hpp>
 
 // The-Forge (o include path do projeto aponta para a raiz do The-Forge).
 #include "Common_3/Application/Interfaces/IFont.h"
@@ -36,6 +37,11 @@ namespace forgeui {
 // vez de chamar as funcoes globais).
 [[nodiscard]] cengine::input::Keyboard& keyboard();
 
+// O ponteiro por tras da fachada global, para quem quiser falar com a porta
+// direto (uma cena que receba `cengine::input::Mouse&` em vez de chamar as
+// funcoes globais). Mesmo desenho do `keyboard()`.
+[[nodiscard]] cengine::input::Mouse& mouse();
+
 // Paleta (ABGR, formato do FontDrawDesc::mFontColor): mesma intencao de cores
 // das plataformas de terminal dos jogos de estudo (ciano para titulos, ambar
 // para destaques).
@@ -51,35 +57,20 @@ inline constexpr uint32_t kFaint = 0xff5a5a5a;
 
 // --- mouse ---
 //
-// O VOCABULARIO do mouse mora AQUI, e nao na `cengine::input`, ao contrario
-// do teclado. O motivo e o ADR 0002: o enum de teclas subiu para a engine
-// quando ja era a QUARTA copia identica espalhada pelos jogos; o mouse tem
-// UM consumidor (o Bulwark, task 05 daquele repo, 2026-07-28) e nenhuma
-// evidencia de que a forma abaixo seja a certa para o proximo. Se um segundo
-// jogo precisar, a comparacao decide se isto vira porta da engine — e ai o
-// caminho e o mesmo que o teclado fez.
+// O VOCABULARIO do mouse SUBIU para a `cengine::input` (task 27 / 0.14.0).
+// Ele viveu aqui por dois jogos de proposito: o enum de teclas so subiu na
+// quarta copia identica, e nao havia por que apressar o ponteiro. Subiu agora
+// porque o SEGUNDO consumidor (tactics, degrau 06) usou a forma do primeiro
+// (bulwark, degrau 05) sem mudar nada — que e o sinal mais forte de que a
+// forma esta certa.
 //
 // A ponte guarda o que sempre foi dela: a CAPTURA (o WndProc traduzindo
-// WM_MOUSEMOVE/WM_LBUTTONDOWN) e a ergonomia global das cenas.
+// WM_MOUSEMOVE/WM_LBUTTONDOWN) e a ergonomia global das cenas. Os nomes abaixo
+// continuam existindo como ALIAS — quem ja escrevia `forgeui::MouseClick` nao
+// precisa mudar nada.
 
-enum class MouseButton
-{
-    None,
-    Left,
-    Right,
-};
-
-// Um clique, com a posicao DO MOMENTO em que aconteceu. A posicao vai junto
-// de proposito: o ponteiro pode ter andado entre o clique e o quadro em que a
-// cena o le, e ai "onde eu cliquei" e "onde o mouse esta" sao coisas
-// diferentes. Coordenadas em PIXELS da area util da janela — o mesmo espaco
-// do `drawText`; traduzir para o mundo do jogo e trabalho do jogo.
-struct MouseClick
-{
-    MouseButton button = MouseButton::None;
-    float       x = 0.0f;
-    float       y = 0.0f;
-};
+using MouseButton = cengine::input::MouseButton;
+using MouseClick = cengine::input::MouseClick;
 
 // --- ciclo de vida (chamado pelo casco da plataforma) ---
 

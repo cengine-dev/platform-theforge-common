@@ -13,16 +13,11 @@ namespace {
 // e continua fazendo o que so ela pode fazer: capturar.
 cengine::input::Keyboard gKeyboard;
 
-// O mouse NAO tem porta na engine (ver ForgeUi.h): estado e fila vivem aqui,
-// com a mesma disciplina da fila de teclas — posicao e estado continuo,
-// clique e edge, um por aperto.
-float                   gMouseX = 0.0f;
-float                   gMouseY = 0.0f;
-std::vector<forgeui::MouseClick> gMouseClicks;
-
-// Mesmo teto da fila de teclas, e pelo mesmo motivo: se ninguem consome
-// (cena travada, janela em background), a fila nao cresce sem limite.
-constexpr size_t kMouseQueueMax = 16;
+// O ponteiro tambem virou MECANISMO DA ENGINE (cengine::input::Mouse, task 27
+// / 0.14.0), pelo mesmo caminho que o teclado fez na 0.8.0: viveu aqui
+// enquanto tinha um consumidor so, e subiu quando o segundo usou a forma do
+// primeiro sem mudar nada. A ponte segue guardando a instancia e capturando.
+cengine::input::Mouse gMouse;
 
 Cmd*     gCmd = NULL;
 float    gWidth = 0.0f;
@@ -35,26 +30,17 @@ namespace forgeui {
 
 cengine::input::Keyboard& keyboard() { return gKeyboard; }
 
+cengine::input::Mouse& mouse() { return gMouse; }
+
 void pushKey(const KeyEvent event) { gKeyboard.pushKey(event); }
 
 void pushHeldKey(const Key key, const bool held) { gKeyboard.pushHeldKey(key, held); }
 
 void clearHeldKeys() { gKeyboard.clearHeldKeys(); }
 
-void pushMousePosition(const float x, const float y)
-{
-    gMouseX = x;
-    gMouseY = y;
-}
+void pushMousePosition(const float x, const float y) { gMouse.pushPosition(x, y); }
 
-void pushMouseClick(const MouseClick click)
-{
-    if (gMouseClicks.size() >= kMouseQueueMax)
-    {
-        return; // fila cheia: o evento novo cai
-    }
-    gMouseClicks.push_back(click);
-}
+void pushMouseClick(const MouseClick click) { gMouse.pushClick(click); }
 
 void beginDraw(Cmd* cmd, const float width, const float height, const uint32_t fontID)
 {
@@ -70,20 +56,10 @@ bool isHeld(const Key key) { return gKeyboard.isHeld(key); }
 
 float heldAxis(const Key negative, const Key positive) { return gKeyboard.heldAxis(negative, positive); }
 
-float mouseX() { return gMouseX; }
-float mouseY() { return gMouseY; }
+float mouseX() { return gMouse.x(); }
+float mouseY() { return gMouse.y(); }
 
-MouseClick readMouseClick()
-{
-    if (gMouseClicks.empty())
-    {
-        return {};
-    }
-
-    const MouseClick click = gMouseClicks.front();
-    gMouseClicks.erase(gMouseClicks.begin());
-    return click;
-}
+MouseClick readMouseClick() { return gMouse.readClick(); }
 
 float screenWidth() { return gWidth; }
 float screenHeight() { return gHeight; }

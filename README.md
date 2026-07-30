@@ -18,7 +18,24 @@ Separar responsabilidades entre os projetos:
 - jogos (`8puzzle`, `spaceinvaders`, `asteroids`, ...): dominio, regras,
   cenas concretas e assets de cada jogo.
 
-## Conteudo (0.8.0)
+## Conteudo (0.9.0)
+
+### Mudou de casa na 0.9.0
+
+- **O vocabulario de mouse SUBIU para a `cengine::input`** (task 27 da engine,
+  cengine 0.14.0). `MouseButton` e `MouseClick` agora sao da engine; esta ponte
+  guarda a instancia de `cengine::input::Mouse` e continua fazendo o que so ela
+  pode fazer — CAPTURAR (o WndProc traduzindo `WM_MOUSEMOVE`/`WM_LBUTTONDOWN`).
+
+  Mesmo caminho que o teclado fez na 0.8.0 da engine: o vocabulario viveu aqui
+  enquanto tinha um consumidor so (o Bulwark), e subiu quando o SEGUNDO
+  (Tactics) usou a forma do primeiro **sem pedir nenhuma mudanca de API**.
+
+  **Nao quebra nada.** `forgeui::MouseButton` e `forgeui::MouseClick` continuam
+  existindo como ALIAS dos tipos da engine, e as funcoes globais
+  (`mouseX`/`mouseY`/`readMouseClick`) tem exatamente a mesma assinatura. Quem
+  quiser falar com a porta direto tem `forgeui::mouse()`, irmao do
+  `forgeui::keyboard()`. Requer cengine >= 0.14.0.
 
 ### Corrigido na 0.8.0
 
