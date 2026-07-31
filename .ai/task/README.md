@@ -43,6 +43,29 @@ exercitando o resultado:
 
 ## Observacoes (nao sao candidatas ainda — 1a evidencia so)
 
+- **Mascara ASCII no `Paint.ps1`** — os dez tools de atlas anteriores
+  desenharam so RETANGULOS, e `Fill-Rect` deu conta em todos. O Klondike
+  (2026-07-31) foi o primeiro com arte que NAO e retangulo: um naipe de copas
+  tem dois lobos e um bico, paus tem tres circulos. Escrever isso em
+  `Fill-Rect` seria ilegivel no tool e feio na tela, entao os quatro naipes
+  viraram MASCARAS de texto (`#` pinta, `.` deixa passar) em
+  `tools/make-atlas-klondike-dds.ps1` — a unica forma em que a arte do arquivo
+  se PARECE com a arte da tela. **1 evidencia so**, e por isso fica no tool do
+  jogo. O criterio de mecanismo puro passa com folga (um `string[]` e uma cor),
+  e da para exercitar sem jogo e sem GPU. Mesma formula das tasks 05 e 06: **o
+  proximo jogo com arte que nao seja retangulo EXTRAI, nao copia.**
+
+- **Vocabulario de DRAG (0.10.0), LOCAL no `forgeui`** — `drag()` (estado) +
+  `readDrop()` (edge), nascidos com o Klondike. Ficam aqui, e o caminho e o que
+  o mouse ja percorreu (task 03 deste repo -> task 27 da cengine): viveu no
+  `forgeui` por dois jogos e so subiu para a engine quando o 2o consumidor usou
+  a forma do 1o sem pedir mudanca de API. **Um consumidor** — nenhuma evidencia
+  de que esta forma seja a certa para o proximo. O que NAO espera nada e o
+  `SetCapture`/`WM_CAPTURECHANGED` no `TheForgeWindowManager`: ele ja subiu por
+  construcao, porque o WndProc E o casco, e era um buraco que existia desde
+  sempre (sem capturar o ponteiro, soltar o botao fora da janela nao gera
+  `WM_LBUTTONUP` e o gesto fica pendurado para sempre).
+
 - **`forgesprite` e um atlas SO** (`ForgeSpriteUi.cpp`: `Texture* gAtlasTexture`
   global, setado uma vez em `init()`). O Star Force (2026-07-22, tela de menu
   com arte gerada fora do pipeline pixel-art da gameplay: logo/botoes/fundo)
