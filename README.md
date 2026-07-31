@@ -18,7 +18,36 @@ Separar responsabilidades entre os projetos:
 - jogos (`8puzzle`, `spaceinvaders`, `asteroids`, ...): dominio, regras,
   cenas concretas e assets de cada jogo.
 
-## Conteudo (0.9.0)
+## Conteudo (0.10.0)
+
+### Novo na 0.10.0
+
+- **O ARRASTAR** (`forgeui::drag()` / `readDrop()` / `cancelDrag()`), com a
+  captura de `WM_LBUTTONUP` que faltava no WndProc. Consumidor de validacao: o
+  Klondike (degrau 06).
+
+  Vocabulario LOCAL, e nao porta da engine — mesmo criterio que segurou o mouse
+  por dois jogos (task 27): um consumidor, e nenhuma evidencia de que esta seja
+  a forma certa para o proximo. Se um segundo jogo arrastar, a comparacao
+  decide.
+
+  **Duas leituras, porque arrastar nao cabe na fila de cliques.** Um clique e
+  um EVENTO (aconteceu, tem uma posicao, acabou); arrastar e um CICLO DE VIDA
+  com duas pontas que carregam posicoes DIFERENTES — a origem diz o que se
+  pega, o destino diz para onde vai. Entao: `drag()` e estado continuo (para
+  desenhar o que esta na mao, todo quadro) e `readDrop()` e edge (um por gesto,
+  com as duas posicoes juntas).
+
+  **O casco NAO decide se o gesto foi clique ou arrasto.** Ele entrega as duas
+  pontas; quantos pixels de folga ainda contam como toque parado e politica do
+  JOGO — depende do tamanho do alvo e do tremor de mao que se perdoa.
+
+- **`SetCapture` no `WM_LBUTTONDOWN`** (e `ReleaseCapture` no UP). Sem isto,
+  soltar o botao FORA da janela nao gera `WM_LBUTTONUP` nenhum e o gesto ficava
+  pendurado para sempre — a carta grudada no cursor. E o primeiro lugar em que
+  o arrastar cobra algo que o clique nunca cobrou. `WM_CAPTURECHANGED` e
+  `WM_KILLFOCUS` cancelam o gesto: cancelar e melhor que soltar num destino que
+  o jogador nao escolheu.
 
 ### Mudou de casa na 0.9.0
 

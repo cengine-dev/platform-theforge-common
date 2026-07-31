@@ -72,6 +72,54 @@ inline constexpr uint32_t kFaint = 0xff5a5a5a;
 using MouseButton = cengine::input::MouseButton;
 using MouseClick = cengine::input::MouseClick;
 
+// --- arrastar ---
+//
+// O vocabulario do ARRASTAR mora AQUI, e nao na `cengine::input` — pelo mesmo
+// criterio que segurou o mouse por dois jogos (task 27 da engine): ele tem UM
+// consumidor (o Klondike, degrau 06) e nenhuma evidencia de que a forma abaixo
+// seja a certa para o proximo. Se um segundo jogo arrastar, a comparacao
+// decide; e ai o caminho e o mesmo que o teclado e o mouse fizeram.
+//
+// ## Por que arrastar nao cabe na fila de cliques
+//
+// Um clique e um EVENTO: aconteceu, tem uma posicao, acabou. Arrastar e um
+// CICLO DE VIDA com duas pontas que carregam posicoes DIFERENTES — a origem
+// diz O QUE se pega, o destino diz PARA ONDE vai — e um meio em que o jogo
+// precisa desenhar o que esta na mao.
+//
+// Por isso sao duas leituras, como no teclado:
+//
+// - **estado** (`drag()`): "o botao esta segurado, comecou ali, esta aqui
+//   agora". Serve para desenhar o que se arrasta, todo quadro.
+// - **edge** (`readDrop()`): "soltou". Um evento por gesto fisico, com as duas
+//   posicoes juntas.
+//
+// ## O que este casco NAO decide
+//
+// Se um gesto foi "clique" ou "arrasto". Ele entrega onde apertou e onde
+// soltou; **quantos pixels de folga ainda contam como clique parado e politica
+// do JOGO** — depende do tamanho do alvo e da tolerancia que o jogo quer ter.
+
+/// O gesto em andamento. `active == false` quando nada esta sendo arrastado.
+struct DragState
+{
+    bool  active = false;
+    float startX = 0.0f; ///< onde o botao foi apertado
+    float startY = 0.0f;
+    float x = 0.0f; ///< onde o ponteiro esta agora
+    float y = 0.0f;
+};
+
+/// Um gesto que TERMINOU: as duas pontas, juntas.
+struct Drop
+{
+    bool  happened = false;
+    float startX = 0.0f;
+    float startY = 0.0f;
+    float x = 0.0f;
+    float y = 0.0f;
+};
+
 // --- ciclo de vida (chamado pelo casco da plataforma) ---
 
 // Enfileira um evento de tecla vindo do WndProc do casco (WM_KEYDOWN/
@@ -93,6 +141,16 @@ void pushMousePosition(float x, float y);
 // Enfileira um clique (WM_LBUTTONDOWN/WM_RBUTTONDOWN): edges, um evento por
 // aperto — mesma promessa da fila de teclas.
 void pushMouseClick(MouseClick click);
+
+// Comeca um gesto de arrastar (WM_LBUTTONDOWN do casco).
+void pushMouseDown(float x, float y);
+
+// Termina o gesto e enfileira o `Drop` (WM_LBUTTONUP do casco).
+void pushMouseUp(float x, float y);
+
+// Cancela o gesto em andamento sem gerar `Drop`: a janela perdeu o foco, e o
+// WM_LBUTTONUP pode nunca chegar. Irmao do `clearHeldKeys`.
+void cancelDrag();
 
 // Publica o alvo de desenho do quadro (chamado no update do casco, antes
 // das fases do jogo).
@@ -120,6 +178,14 @@ KeyEvent readKey();
 // Consome no maximo um clique por chamada (fila esvazia 1/quadro), igual ao
 // `readKey`. Sem clique pendente, devolve `MouseButton::None`.
 MouseClick readMouseClick();
+
+// O gesto em andamento (estado continuo): serve para desenhar o que esta
+// sendo arrastado, todo quadro.
+[[nodiscard]] DragState drag();
+
+// Consome no maximo um `Drop` por chamada. Sem gesto terminado, devolve
+// `happened == false`.
+Drop readDrop();
 
 float screenWidth();
 float screenHeight();

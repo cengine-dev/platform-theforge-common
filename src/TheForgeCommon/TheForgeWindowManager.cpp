@@ -152,6 +152,7 @@ LRESULT CALLBACK wmWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_KILLFOCUS:
         // alt-tab com tecla presa: solta tudo (o WM_KEYUP nunca chegara)
         forgeui::clearHeldKeys();
+        forgeui::cancelDrag(); // e o WM_LBUTTONUP tambem nao chegara
         return 0;
     case WM_MOUSEMOVE:
         // Coordenadas da area util, o MESMO espaco em que o jogo desenha —
@@ -164,6 +165,40 @@ LRESULT CALLBACK wmWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         // o aperto e o quadro em que a cena o consome.
         forgeui::pushMouseClick({ msg == WM_LBUTTONDOWN ? forgeui::MouseButton::Left : forgeui::MouseButton::Right,
                                   (float)GET_X_LPARAM(lParam), (float)GET_Y_LPARAM(lParam) });
+
+        if (msg == WM_LBUTTONDOWN)
+        {
+            // O MESMO aperto abre duas leituras: ele e um clique (evento) e o
+            // comeco de um arrasto (ciclo de vida). Nao da para saber qual dos
+            // dois o jogador quis ate ele soltar — e e por isso que arrastar
+            // nao cabe na fila de cliques.
+            forgeui::pushMouseDown((float)GET_X_LPARAM(lParam), (float)GET_Y_LPARAM(lParam));
+
+            // CAPTURA DO PONTEIRO: sem isto, soltar o botao FORA da janela nao
+            // gera WM_LBUTTONUP nenhum, e o gesto ficaria pendurado para
+            // sempre — a carta grudada no cursor. E o primeiro lugar em que o
+            // arrastar cobra algo que o clique nunca cobrou.
+            SetCapture(hwnd);
+        }
+        return 0;
+    case WM_LBUTTONUP:
+        // A ORDEM DESTAS DUAS LINHAS E A REGRA, e nao estilo.
+        //
+        // `ReleaseCapture` manda `WM_CAPTURECHANGED` DE FORMA SINCRONA — ela
+        // reentra neste WndProc antes de retornar. Com a ordem trocada, o
+        // `cancelDrag()` de la zerava o gesto e o `pushMouseUp` seguinte
+        // encontrava `active == false`: nenhum `Drop` era enfileirado, e o
+        // jogo via o arrasto acontecer e nunca terminar.
+        //
+        // Terminar o gesto PRIMEIRO deixa o cancelamento como no-op inofensivo.
+        forgeui::pushMouseUp((float)GET_X_LPARAM(lParam), (float)GET_Y_LPARAM(lParam));
+        ReleaseCapture();
+        return 0;
+    case WM_CAPTURECHANGED:
+        // Alguem tomou a captura (alt-tab, um dialogo do sistema): o UP nao
+        // vem mais. Cancelar e melhor que soltar num destino que o jogador
+        // nao escolheu.
+        forgeui::cancelDrag();
         return 0;
     case WM_CHAR:
         // Caracteres imprimiveis (o WM_CHAR ja aplica shift/layout do teclado).

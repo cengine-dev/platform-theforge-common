@@ -19,6 +19,16 @@ cengine::input::Keyboard gKeyboard;
 // primeiro sem mudar nada. A ponte segue guardando a instancia e capturando.
 cengine::input::Mouse gMouse;
 
+// O ARRASTAR ainda nao tem porta na engine (ver ForgeUi.h): um consumidor so.
+// Estado e fila vivem aqui, com a mesma disciplina do resto — o gesto em
+// andamento e estado continuo, o gesto terminado e edge.
+forgeui::DragState gDrag;
+std::vector<forgeui::Drop> gDrops;
+
+// Mesmo teto das outras filas, e pelo mesmo motivo: se ninguem consome, ela
+// nao cresce sem limite.
+constexpr size_t kDropQueueMax = 16;
+
 Cmd*     gCmd = NULL;
 float    gWidth = 0.0f;
 float    gHeight = 0.0f;
@@ -38,9 +48,45 @@ void pushHeldKey(const Key key, const bool held) { gKeyboard.pushHeldKey(key, he
 
 void clearHeldKeys() { gKeyboard.clearHeldKeys(); }
 
-void pushMousePosition(const float x, const float y) { gMouse.pushPosition(x, y); }
+void pushMousePosition(const float x, const float y)
+{
+    gMouse.pushPosition(x, y);
+
+    // O gesto em andamento acompanha o ponteiro: e o que permite a cena
+    // desenhar o que esta na mao seguindo o cursor.
+    if (gDrag.active)
+    {
+        gDrag.x = x;
+        gDrag.y = y;
+    }
+}
 
 void pushMouseClick(const MouseClick click) { gMouse.pushClick(click); }
+
+void pushMouseDown(const float x, const float y)
+{
+    gDrag.active = true;
+    gDrag.startX = x;
+    gDrag.startY = y;
+    gDrag.x = x;
+    gDrag.y = y;
+}
+
+void pushMouseUp(const float x, const float y)
+{
+    if (!gDrag.active)
+    {
+        return; // soltou sem ter apertado aqui (o aperto foi noutra janela)
+    }
+
+    if (gDrops.size() < kDropQueueMax)
+    {
+        gDrops.push_back(Drop{ true, gDrag.startX, gDrag.startY, x, y });
+    }
+    gDrag = DragState{};
+}
+
+void cancelDrag() { gDrag = DragState{}; }
 
 void beginDraw(Cmd* cmd, const float width, const float height, const uint32_t fontID)
 {
@@ -60,6 +106,20 @@ float mouseX() { return gMouse.x(); }
 float mouseY() { return gMouse.y(); }
 
 MouseClick readMouseClick() { return gMouse.readClick(); }
+
+DragState drag() { return gDrag; }
+
+Drop readDrop()
+{
+    if (gDrops.empty())
+    {
+        return Drop{};
+    }
+
+    const Drop front = gDrops.front();
+    gDrops.erase(gDrops.begin());
+    return front;
+}
 
 float screenWidth() { return gWidth; }
 float screenHeight() { return gHeight; }
