@@ -13,6 +13,7 @@ The Forge usado pelos jogos de estudo.
 | 04 | [forgesprite::drawSpriteRect (retangulo arbitrario)](04-draw-sprite-rect.md) | done (0.4.0) | Plataforma |
 | 05 | [forgeaudio: backend XAudio2 da porta de audio](05-forge-audio-backend.md) | done (0.5.0) | Plataforma |
 | 06 | [Escritor de DDS compartilhado (tools)](06-atlas-dds-writer.md) | done (0.5.0) | Ferramentas |
+| 07 | [Paint.ps1: helpers de pintura dos tools](07-paint-helpers.md) | done (0.7.0; `Paint-Mask` na 0.11.0) | Ferramentas |
 
 ## Candidatas (mesma disciplina da ADR 0002 da cengine)
 
@@ -43,17 +44,10 @@ exercitando o resultado:
 
 ## Observacoes (nao sao candidatas ainda — 1a evidencia so)
 
-- **Mascara ASCII no `Paint.ps1`** — os dez tools de atlas anteriores
-  desenharam so RETANGULOS, e `Fill-Rect` deu conta em todos. O Klondike
-  (2026-07-31) foi o primeiro com arte que NAO e retangulo: um naipe de copas
-  tem dois lobos e um bico, paus tem tres circulos. Escrever isso em
-  `Fill-Rect` seria ilegivel no tool e feio na tela, entao os quatro naipes
-  viraram MASCARAS de texto (`#` pinta, `.` deixa passar) em
-  `tools/make-atlas-klondike-dds.ps1` — a unica forma em que a arte do arquivo
-  se PARECE com a arte da tela. **1 evidencia so**, e por isso fica no tool do
-  jogo. O criterio de mecanismo puro passa com folga (um `string[]` e uma cor),
-  e da para exercitar sem jogo e sem GPU. Mesma formula das tasks 05 e 06: **o
-  proximo jogo com arte que nao seja retangulo EXTRAI, nao copia.**
+> **A mascara ASCII SAIU desta lista em 2026-07-31: virou o `Paint-Mask` da
+> 0.11.0**, com o Counter como segundo consumidor. Ficou aqui por um jogo
+> exatamente como a formula manda — *o proximo jogo com arte que nao seja
+> retangulo EXTRAI, nao copia* — e o proximo veio. Ver a task 07.
 
 - **Vocabulario de DRAG (0.10.0), LOCAL no `forgeui`** — `drag()` (estado) +
   `readDrop()` (edge), nascidos com o Klondike. Ficam aqui, e o caminho e o que
