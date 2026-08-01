@@ -54,7 +54,9 @@ exercitando o resultado:
   o mouse ja percorreu (task 03 deste repo -> task 27 da cengine): viveu no
   `forgeui` por dois jogos e so subiu para a engine quando o 2o consumidor usou
   a forma do 1o sem pedir mudanca de API. **Um consumidor** — nenhuma evidencia
-  de que esta forma seja a certa para o proximo. O que NAO espera nada e o
+  de que esta forma seja a certa para o proximo. **Confirmado na revisao do
+  Counter (2026-07-31): o 12o jogo nao arrasta nada** — o preparo dele e clique
+  em botao e o servico e clique no balcao. Segue 1/2. O que NAO espera nada e o
   `SetCapture`/`WM_CAPTURECHANGED` no `TheForgeWindowManager`: ele ja subiu por
   construcao, porque o WndProc E o casco, e era um buraco que existia desde
   sempre (sem capturar o ponteiro, soltar o botao fora da janela nao gera
