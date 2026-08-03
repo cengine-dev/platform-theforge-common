@@ -14,6 +14,7 @@ The Forge usado pelos jogos de estudo.
 | 05 | [forgeaudio: backend XAudio2 da porta de audio](05-forge-audio-backend.md) | done (0.5.0) | Plataforma |
 | 06 | [Escritor de DDS compartilhado (tools)](06-atlas-dds-writer.md) | done (0.5.0) | Ferramentas |
 | 07 | [Paint.ps1: helpers de pintura dos tools](07-paint-helpers.md) | done (0.7.0; `Paint-Mask` na 0.11.0) | Ferramentas |
+| 08 | [ForgeUi delega o ARRASTAR para a cengine::input](08-drag-via-cengine-input.md) | done (0.12.0) | Plataforma |
 
 ## Candidatas (mesma disciplina da ADR 0002 da cengine)
 
@@ -49,18 +50,27 @@ exercitando o resultado:
 > exatamente como a formula manda — *o proximo jogo com arte que nao seja
 > retangulo EXTRAI, nao copia* — e o proximo veio. Ver a task 07.
 
-- **Vocabulario de DRAG (0.10.0), LOCAL no `forgeui`** — `drag()` (estado) +
-  `readDrop()` (edge), nascidos com o Klondike. Ficam aqui, e o caminho e o que
-  o mouse ja percorreu (task 03 deste repo -> task 27 da cengine): viveu no
-  `forgeui` por dois jogos e so subiu para a engine quando o 2o consumidor usou
-  a forma do 1o sem pedir mudanca de API. **Um consumidor** — nenhuma evidencia
-  de que esta forma seja a certa para o proximo. **Confirmado na revisao do
-  Counter (2026-07-31): o 12o jogo nao arrasta nada** — o preparo dele e clique
-  em botao e o servico e clique no balcao. Segue 1/2. O que NAO espera nada e o
-  `SetCapture`/`WM_CAPTURECHANGED` no `TheForgeWindowManager`: ele ja subiu por
-  construcao, porque o WndProc E o casco, e era um buraco que existia desde
-  sempre (sem capturar o ponteiro, soltar o botao fora da janela nao gera
-  `WM_LBUTTONUP` e o gesto fica pendurado para sempre).
+> **O vocabulario de DRAG SAIU desta lista em 2026-08-03: subiu para a
+> `cengine::input::Mouse` (task 28 da engine, 0.15.0), e este casco passou a
+> DELEGAR na 0.12.0.** Ficou aqui por dois jogos exatamente como o caminho do
+> mouse mandava (task 03 deste repo -> task 27 da cengine), e o gate foi
+> cumprido ao pe da letra: o 2o consumidor (**cue**, degrau 06 — a tacada por
+> arrasto) usou as duas leituras para o que elas foram feitas, leu os quatro
+> campos de cada uma e **nao pediu nenhuma mudanca de API**.
+>
+> `forgeui::DragState` e `forgeui::Drop` continuam existindo como ALIAS, e
+> `drag()`/`readDrop()` continuam sendo a ergonomia global das cenas — nenhum
+> jogo mudou uma linha, igual a promocao do mouse.
+>
+> **O `SetCapture`/`WM_CAPTURECHANGED` ficou, e nunca foi candidato**: e Win32, e
+> o WndProc E o casco. O que subiu foi o `cancelDrag()`, que e a resposta em
+> vocabulario de PORTA ao que este casco descobre em vocabulario de JANELA.
+>
+> E a folga de "isto foi clique ou arrasto?" tambem ficou fora, e o segundo
+> consumidor provou por que: o Klondike usa 8 pixels para uma carta de 90, o cue
+> usa 12 para uma bola de 20, e os dois medem perguntas diferentes ("errou o
+> alvo?" contra "quis mesmo tacar?"). **Foi a primeira vez que uma recusa a
+> opinar do casco foi TESTADA por um segundo caso, em vez de so declarada.**
 
 - **`forgesprite` e um atlas SO** (`ForgeSpriteUi.cpp`: `Texture* gAtlasTexture`
   global, setado uma vez em `init()`). O Star Force (2026-07-22, tela de menu

@@ -74,51 +74,36 @@ using MouseClick = cengine::input::MouseClick;
 
 // --- arrastar ---
 //
-// O vocabulario do ARRASTAR mora AQUI, e nao na `cengine::input` — pelo mesmo
-// criterio que segurou o mouse por dois jogos (task 27 da engine): ele tem UM
-// consumidor (o Klondike, degrau 06) e nenhuma evidencia de que a forma abaixo
-// seja a certa para o proximo. Se um segundo jogo arrastar, a comparacao
-// decide; e ai o caminho e o mesmo que o teclado e o mouse fizeram.
+// O vocabulario do ARRASTAR SUBIU para a `cengine::input` (task 28 / 0.15.0).
 //
-// ## Por que arrastar nao cabe na fila de cliques
+// Ele viveu aqui por dois jogos, de proposito e pelo mesmo criterio que segurou
+// o mouse (task 27): tinha UM consumidor (o Klondike, degrau 06) e nenhuma
+// evidencia de que a forma fosse a certa para o proximo. Subiu agora porque o
+// SEGUNDO consumidor (o cue, degrau 06) usou as duas leituras para o que elas
+// foram feitas, leu os quatro campos de cada uma e **nao pediu nenhuma mudanca
+// de API**.
 //
-// Um clique e um EVENTO: aconteceu, tem uma posicao, acabou. Arrastar e um
-// CICLO DE VIDA com duas pontas que carregam posicoes DIFERENTES — a origem
-// diz O QUE se pega, o destino diz PARA ONDE vai — e um meio em que o jogo
-// precisa desenhar o que esta na mao.
+// Os nomes abaixo continuam existindo como ALIAS — quem ja escrevia
+// `forgeui::DragState` nao precisa mudar nada.
 //
-// Por isso sao duas leituras, como no teclado:
+// ## O que ficou AQUI, e nunca foi candidato
 //
-// - **estado** (`drag()`): "o botao esta segurado, comecou ali, esta aqui
-//   agora". Serve para desenhar o que se arrasta, todo quadro.
-// - **edge** (`readDrop()`): "soltou". Um evento por gesto fisico, com as duas
-//   posicoes juntas.
+// O **`SetCapture`**. Sem capturar o ponteiro no aperto, soltar o botao fora da
+// janela nao gera `WM_LBUTTONUP` nenhum e o gesto fica pendurado para sempre —
+// mas isso e Win32, e o WndProc E o casco. O que subiu foi o `cancelDrag()`, que
+// e a resposta em vocabulario de PORTA ao que este casco descobre em vocabulario
+// de JANELA.
 //
-// ## O que este casco NAO decide
+// ## O que este casco continua NAO decidindo
 //
-// Se um gesto foi "clique" ou "arrasto". Ele entrega onde apertou e onde
-// soltou; **quantos pixels de folga ainda contam como clique parado e politica
-// do JOGO** — depende do tamanho do alvo e da tolerancia que o jogo quer ter.
+// Se um gesto foi "clique" ou "arrasto". Ele entrega onde apertou e onde soltou;
+// **quantos pixels de folga ainda contam como clique parado e politica do
+// JOGO**. Isso deixou de ser so uma boa razao e virou fato medido: o Klondike
+// usa 8 pixels para uma carta de 90, o cue usa 12 para uma bola de 20, e os dois
+// medem perguntas diferentes ("errou o alvo?" contra "quis mesmo tacar?").
 
-/// O gesto em andamento. `active == false` quando nada esta sendo arrastado.
-struct DragState
-{
-    bool  active = false;
-    float startX = 0.0f; ///< onde o botao foi apertado
-    float startY = 0.0f;
-    float x = 0.0f; ///< onde o ponteiro esta agora
-    float y = 0.0f;
-};
-
-/// Um gesto que TERMINOU: as duas pontas, juntas.
-struct Drop
-{
-    bool  happened = false;
-    float startX = 0.0f;
-    float startY = 0.0f;
-    float x = 0.0f;
-    float y = 0.0f;
-};
+using DragState = cengine::input::DragState;
+using Drop = cengine::input::Drop;
 
 // --- ciclo de vida (chamado pelo casco da plataforma) ---
 
