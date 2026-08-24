@@ -199,6 +199,17 @@ float screenHeight();
 //    Para grade de passo fixo, a posicao tem que vir da aritmetica da grade,
 //    nunca do avanco da fonte.
 void drawText(const std::string& text, float x, float y, float fontSize, uint32_t colorAbgr);
+
+// Quantas chamadas de texto o QUADRO ANTERIOR fez.
+//
+// **O teto documentado acima deixa de ser folclore e vira numero.** Ate aqui ele
+// so podia ser estimado contando `drawText` no codigo — o que erra sempre que o
+// numero depende do estado do jogo (quantos inimigos, quantos itens no chao), que
+// e justamente o caso em que ele estoura.
+//
+// E do quadro anterior, e nao do atual, porque durante o quadro a contagem ainda
+// esta subindo: perguntar no meio nao responderia nada.
+[[nodiscard]] uint32_t lastFrameTextCalls();
 void drawTextCentered(const std::string& text, float y, float fontSize, uint32_t colorAbgr);
 
 // Rodape padrao com as dicas de tecla da cena.

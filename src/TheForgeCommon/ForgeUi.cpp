@@ -48,13 +48,22 @@ void pushMouseUp(const float x, const float y) { gMouse.pushUp(x, y); }
 
 void cancelDrag() { gMouse.cancelDrag(); }
 
+// A contagem de texto do quadro. Ver `lastFrameTextCalls`.
+static uint32_t gTextCalls = 0;
+static uint32_t gLastFrameTextCalls = 0;
+
 void beginDraw(Cmd* cmd, const float width, const float height, const uint32_t fontID)
 {
     gCmd = cmd;
     gWidth = width;
     gHeight = height;
     gFontID = fontID;
+
+    gLastFrameTextCalls = gTextCalls;
+    gTextCalls = 0;
 }
+
+uint32_t lastFrameTextCalls() { return gLastFrameTextCalls; }
 
 KeyEvent readKey() { return gKeyboard.readKey(); }
 
@@ -89,6 +98,8 @@ void drawText(const std::string& text, const float x, const float y, const float
     // nos batchers e desenhado AGORA, para este texto ficar por cima.
     forgesprite::flush();
     forgeline::flush();
+
+    ++gTextCalls;
 
     FontDrawDesc desc = {};
     desc.pText = text.c_str();
