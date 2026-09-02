@@ -20,6 +20,7 @@ struct LineVertex
 };
 
 constexpr uint32_t kVertsPerLine = 2;
+constexpr uint32_t kVertsPerTriangle = 3;
 
 bool     gEnabled = false;
 uint32_t gMaxLines = 0;
@@ -28,6 +29,7 @@ uint32_t gMaxVerts = 0;
 Renderer* gRenderer = NULL;
 Shader*   gShader = NULL;
 Pipeline* gPipeline = NULL;
+Pipeline* gTrianglePipeline = NULL;
 Buffer*   gVertexBuffer = NULL; // gMaxVerts * frameCount, CPU_TO_GPU
 
 uint32_t gFrameCount = 0;
@@ -40,6 +42,10 @@ uint32_t gBaseVertex = 0;   // inicio do trecho deste frame no vertex buffer
 uint32_t gFlushedVerts = 0; // ja desenhados neste quadro (cursor)
 uint32_t gPendingVerts = 0; // acumulados aguardando flush
 bool     gOverflowLogged = false;
+
+// **O lote pendente e de UMA topologia so.** Ele nao pode ser desenhado por dois
+// pipelines, entao trocar de forma esvazia o que estava acumulado.
+bool gPendingIsTriangle = false;
 
 forgeline::Stats gCurrent = {};
 forgeline::Stats gLastFrame = {};
@@ -157,6 +163,11 @@ void load(const ReloadDesc* reloadDesc, const TinyImageFormat colorFormat, const
         pipelineSettings.pVertexLayout = &vertexLayout;
         pipelineSettings.pRasterizerState = &rasterizerStateDesc;
         addPipeline(gRenderer, &desc, &gPipeline);
+
+        // O irmao de triangulo: tudo igual, menos a topologia. Sem descarte de face
+        // e sem depth — as duas coisas sao decisao de quem desenha, e nao daqui.
+        pipelineSettings.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
+        addPipeline(gRenderer, &desc, &gTrianglePipeline);
     }
 }
 
@@ -169,6 +180,7 @@ void unload(const ReloadDesc* reloadDesc)
 
     if (reloadDesc->mType & (RELOAD_TYPE_SHADER | RELOAD_TYPE_RENDERTARGET))
     {
+        removePipeline(gRenderer, gTrianglePipeline);
         removePipeline(gRenderer, gPipeline);
     }
 
@@ -191,6 +203,7 @@ void begin(Cmd* cmd, const float width, const float height, const uint32_t frame
     gBaseVertex = frameIndex * gMaxVerts;
     gFlushedVerts = 0;
     gPendingVerts = 0;
+    gPendingIsTriangle = false;
     gOverflowLogged = false;
 
     gLastFrame = gCurrent;
@@ -203,6 +216,13 @@ void drawLine(const Point from, const Point to, const uint32_t colorAbgr)
     {
         return;
     }
+
+    if (gPendingIsTriangle && gPendingVerts > 0)
+    {
+        flush();
+    }
+
+    gPendingIsTriangle = false;
 
     if (gFlushedVerts + gPendingVerts + kVertsPerLine > gMaxVerts)
     {
@@ -240,6 +260,39 @@ void drawPolyline(const Point* points, const uint32_t count, const bool closed, 
     }
 }
 
+void drawTriangle(const Point a, const Point b, const Point c, const uint32_t colorAbgr)
+{
+    if (!gEnabled)
+    {
+        return;
+    }
+
+    if (!gPendingIsTriangle && gPendingVerts > 0)
+    {
+        flush();
+    }
+
+    gPendingIsTriangle = true;
+
+    if (gFlushedVerts + gPendingVerts + kVertsPerTriangle > gMaxVerts)
+    {
+        if (!gOverflowLogged)
+        {
+            LOGF(eWARNING, "[forgeline] lote cheio (%u vertices) - triangulo dropado", gMaxVerts);
+            gOverflowLogged = true;
+        }
+        return;
+    }
+
+    LineVertex* v = &gStaging[gFlushedVerts + gPendingVerts];
+    v[0] = { toNdc(a), colorAbgr };
+    v[1] = { toNdc(b), colorAbgr };
+    v[2] = { toNdc(c), colorAbgr };
+
+    gPendingVerts += kVertsPerTriangle;
+    ++gCurrent.triangles;
+}
+
 void flush()
 {
     if (!gEnabled || gPendingVerts == 0 || gCmd == NULL)
@@ -255,7 +308,7 @@ void flush()
     endUpdateResource(&update);
 
     const uint32_t stride = sizeof(LineVertex);
-    cmdBindPipeline(gCmd, gPipeline);
+    cmdBindPipeline(gCmd, gPendingIsTriangle ? gTrianglePipeline : gPipeline);
     cmdBindVertexBuffer(gCmd, 1, &gVertexBuffer, &stride, NULL);
     cmdDraw(gCmd, gPendingVerts, gBaseVertex + gFlushedVerts);
 

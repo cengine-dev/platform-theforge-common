@@ -51,6 +51,7 @@ struct LineBatcherDesc
 // Contadores do quadro ANTERIOR (fechados no begin() seguinte).
 struct Stats
 {
+    uint32_t triangles = 0;
     uint32_t lines = 0;
     uint32_t drawCalls = 0;
 };
@@ -78,6 +79,27 @@ void drawLine(Point from, Point to, uint32_t colorAbgr);
 /// Uma sequencia de pontos ligados. `closed` fecha o ultimo no primeiro — e o
 /// que desenha um poligono (a nave, uma rocha) numa chamada so.
 void drawPolyline(const Point* points, uint32_t count, bool closed, uint32_t colorAbgr);
+
+// **UM TRIANGULO CHEIO, no mesmo lote das linhas.**
+//
+// Ele entrou com o Vigil (degrau 24), e a razao nao e acabamento: wireframe e
+// TRANSPARENTE. Com trinta corpos na tela, trinta contornos se sobrepoem e nenhum
+// esconde o outro -- a leitura morre. Superficie cheia devolve a informacao mais
+// basica de uma cena com profundidade: **quem esta na frente de quem.**
+//
+// Ele reaproveita tudo o que a linha ja tem -- mesmo buffer, mesmos shaders, mesmo
+// vertice (posicao em NDC e cor). O que muda e a topologia, e por isso e um segundo
+// pipeline e nao um modulo novo.
+//
+// **A ordem de chamada continua sendo a profundidade.** Nao ha depth buffer: o que
+// se desenha depois cobre o que veio antes, e cabe a cena desenhar do fundo para a
+// frente. Alternar triangulo e linha custa um `draw call` a cada troca, porque o
+// lote pendente e de uma topologia so.
+//
+// **Sem descarte de face no pipeline.** Quem chama ja sabe se a face esta virada
+// para a camera -- e depois de uma projecao feita na CPU, a orientacao do triangulo
+// na tela e um dado que a cena tem e o pipeline teria de adivinhar.
+void drawTriangle(Point a, Point b, Point c, uint32_t colorAbgr);
 
 Stats lastFrameStats();
 
