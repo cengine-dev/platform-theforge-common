@@ -54,6 +54,23 @@ struct Stats
     uint32_t triangles = 0;
     uint32_t lines = 0;
     uint32_t drawCalls = 0;
+
+    // **O que foi DESCARTADO por lote cheio, e o teto contra o qual medir.**
+    //
+    // Eles entraram com o Vigil em malha (degrau 24), e o motivo e um defeito de
+    // categoria: o estouro sempre existiu, mas so se manifestava como um `LOGF`
+    // uma vez por quadro. **Corpo que some da tela sem erro visivel** e o pior
+    // jeito de errar -- quem esta jogando conclui que o bicho morreu.
+    //
+    // O teto vem junto porque **nenhum consumidor pode saber qual e** sem copiar
+    // o `maxLines` que ele mesmo passou na montagem, e numero copiado e numero
+    // que desencontra. Quem sabe o teto e o batcher.
+    //
+    // `dropped` conta PRIMITIVAS perdidas (linha ou triangulo), nao vertices: e o
+    // numero que responde "sumiu alguma coisa?", que e a pergunta que importa.
+    uint32_t dropped = 0;
+    uint32_t vertices = 0;
+    uint32_t vertexCapacity = 0;
 };
 
 // --- ciclo de vida (chamado pelo casco da plataforma) ---

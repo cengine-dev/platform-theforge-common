@@ -180,6 +180,21 @@ Separar responsabilidades entre os projetos:
   **linha dispensa atlas**: nao ha arte para produzir, so geometria. Um poligono
   girado e uma lista de pontos girados.
 
+  **Ele deixou de ser so de linhas em 0.13.0** — `drawTriangle` desenha uma face
+  cheia no MESMO lote (mesmo buffer, mesmos shaders, mesmo vertice; o que muda e
+  a topologia, e por isso e um segundo pipeline e nao um modulo novo). Trazido
+  pelo `vigil` ao por malhas 3D na cena, e nao por acabamento: **wireframe e
+  transparente**, entao trinta corpos sao trinta contornos e nenhum esconde o
+  outro. Face cheia devolve *quem esta na frente de quem*. Sem depth buffer, a
+  ordem de chamada continua sendo a profundidade; alternar linha e triangulo
+  custa um draw call por troca.
+
+  **Em 0.14.0 o `Stats` passou a dizer o que foi PERDIDO** (`dropped`) e contra
+  que teto (`vertices` / `vertexCapacity`). O estouro de lote sempre existiu e so
+  aparecia num `LOGF` — o que, com malha, virou *corpo sumindo da tela sem erro
+  visivel*. O teto vem daqui porque **nenhum consumidor pode saber qual e** sem
+  copiar o `maxLines` que ele mesmo passou na montagem.
+
 ### Base (0.1.0)
 
 Extraido da PoC do Space Invaders (task 01), com o vocabulario de jogo

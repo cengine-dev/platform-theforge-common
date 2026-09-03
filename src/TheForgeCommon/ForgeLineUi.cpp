@@ -231,6 +231,7 @@ void drawLine(const Point from, const Point to, const uint32_t colorAbgr)
             LOGF(eWARNING, "[forgeline] lote cheio (%u linhas) - linha dropada", gMaxLines);
             gOverflowLogged = true;
         }
+        ++gCurrent.dropped;
         return;
     }
 
@@ -239,6 +240,7 @@ void drawLine(const Point from, const Point to, const uint32_t colorAbgr)
     v[1] = { toNdc(to), colorAbgr };
 
     gPendingVerts += kVertsPerLine;
+    gCurrent.vertices += kVertsPerLine;
     ++gCurrent.lines;
 }
 
@@ -281,6 +283,7 @@ void drawTriangle(const Point a, const Point b, const Point c, const uint32_t co
             LOGF(eWARNING, "[forgeline] lote cheio (%u vertices) - triangulo dropado", gMaxVerts);
             gOverflowLogged = true;
         }
+        ++gCurrent.dropped;
         return;
     }
 
@@ -290,6 +293,7 @@ void drawTriangle(const Point a, const Point b, const Point c, const uint32_t co
     v[2] = { toNdc(c), colorAbgr };
 
     gPendingVerts += kVertsPerTriangle;
+    gCurrent.vertices += kVertsPerTriangle;
     ++gCurrent.triangles;
 }
 
@@ -317,6 +321,14 @@ void flush()
     ++gCurrent.drawCalls;
 }
 
-Stats lastFrameStats() { return gLastFrame; }
+Stats lastFrameStats()
+{
+    // O teto e respondido na LEITURA, e nao acumulado por quadro: ele nao muda
+    // durante a vida do batcher, e assim o primeiro quadro (que ainda nao teve um
+    // `begin` anterior) ja devolve um teto valido em vez de zero.
+    Stats stats = gLastFrame;
+    stats.vertexCapacity = gMaxVerts;
+    return stats;
+}
 
 } // namespace forgeline
