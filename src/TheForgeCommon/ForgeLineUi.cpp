@@ -264,6 +264,14 @@ void drawPolyline(const Point* points, const uint32_t count, const bool closed, 
 
 void drawTriangle(const Point a, const Point b, const Point c, const uint32_t colorAbgr)
 {
+    // Uma cor so e o caso particular de tres iguais. Delegar evita duas copias da
+    // logica de estouro, que e justamente a que nao pode divergir.
+    drawTriangle(a, b, c, colorAbgr, colorAbgr, colorAbgr);
+}
+
+void drawTriangle(const Point a, const Point b, const Point c, const uint32_t colorA, const uint32_t colorB,
+                  const uint32_t colorC)
+{
     if (!gEnabled)
     {
         return;
@@ -288,9 +296,9 @@ void drawTriangle(const Point a, const Point b, const Point c, const uint32_t co
     }
 
     LineVertex* v = &gStaging[gFlushedVerts + gPendingVerts];
-    v[0] = { toNdc(a), colorAbgr };
-    v[1] = { toNdc(b), colorAbgr };
-    v[2] = { toNdc(c), colorAbgr };
+    v[0] = { toNdc(a), colorA };
+    v[1] = { toNdc(b), colorB };
+    v[2] = { toNdc(c), colorC };
 
     gPendingVerts += kVertsPerTriangle;
     gCurrent.vertices += kVertsPerTriangle;

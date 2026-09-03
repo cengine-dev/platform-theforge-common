@@ -118,6 +118,17 @@ void drawPolyline(const Point* points, uint32_t count, bool closed, uint32_t col
 // na tela e um dado que a cena tem e o pipeline teria de adivinhar.
 void drawTriangle(Point a, Point b, Point c, uint32_t colorAbgr);
 
+// **O mesmo triangulo, com UMA COR POR VERTICE.**
+//
+// O vertice do batcher sempre carregou cor propria -- a versao de uma cor so a
+// repetia tres vezes. Expor isso e o que permite ao chamador sombrear por VERTICE
+// e deixar o rasterizador interpolar, em vez de sombrear por face.
+//
+// A diferenca nao e sutil: face chapada mostra a mesma malha como um poliedro,
+// e sombreado interpolado mostra a superficie que o autor modelou. Trazido pelo
+// `vigil` quando as normais por vertice do proprio arquivo passaram a ser lidas.
+void drawTriangle(Point a, Point b, Point c, uint32_t colorA, uint32_t colorB, uint32_t colorC);
+
 Stats lastFrameStats();
 
 } // namespace forgeline

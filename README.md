@@ -189,6 +189,12 @@ Separar responsabilidades entre os projetos:
   ordem de chamada continua sendo a profundidade; alternar linha e triangulo
   custa um draw call por troca.
 
+  **Em 0.15.0 `drawTriangle` ganhou uma cor POR VERTICE.** O vertice do batcher
+  sempre carregou a sua; a versao de uma cor so a repetia tres vezes. Expor isso
+  deixa o chamador sombrear por vertice e o rasterizador interpolar -- e a
+  diferenca entre mostrar a malha como um poliedro e mostrar a superficie que o
+  autor modelou.
+
   **Em 0.14.0 o `Stats` passou a dizer o que foi PERDIDO** (`dropped`) e contra
   que teto (`vertices` / `vertexCapacity`). O estouro de lote sempre existiu e so
   aparecia num `LOGF` — o que, com malha, virou *corpo sumindo da tela sem erro
