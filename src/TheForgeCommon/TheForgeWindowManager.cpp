@@ -13,6 +13,8 @@
 
 // pontes: fila de teclado/estado segurado + batcher — o WndProc publica,
 // as cenas consomem
+#include "ForgeFrame.h"
+#include "ForgeMesh.h"
 #include "ForgeSpriteUi.h"
 #include "ForgeUi.h"
 
@@ -51,6 +53,12 @@ Queue*     pGraphicsQueue = NULL;
 GpuCmdRing gGraphicsCmdRing = {};
 SwapChain* pSwapChain = NULL;
 Semaphore* pImageAcquiredSemaphore = NULL;
+
+// Profundidade (task 10). NULL quando `desc.depth.enabled` e false, que e o
+// default e o caso de todos os jogos 2D.
+RenderTarget* pDepthBuffer = NULL;
+bool          gDepthEnabled = false;
+float         gClearDepth = 1.0f;
 uint32_t   gFontID = 0;
 
 // quadro em andamento (aberto no update(), fechado no present())
@@ -273,6 +281,47 @@ void addGameSwapChain(const int32_t width, const int32_t height)
     addSwapChain(pRenderer, &swapChainDesc, &pSwapChain);
 }
 
+// Criado junto com o swapchain e recriado junto com ele: um resize que refizesse
+// so o swapchain deixaria a profundidade no tamanho velho, e o sintoma seria
+// oclusao errada so depois de mexer na janela — defeito silencioso classico.
+void addGameDepthBuffer(const int32_t width, const int32_t height)
+{
+    if (!gDepthEnabled)
+    {
+        return;
+    }
+
+    RenderTargetDesc depthRT = {};
+    depthRT.mArraySize = 1;
+    depthRT.mDepth = 1;
+    depthRT.mClearValue.depth = gClearDepth;
+    depthRT.mClearValue.stencil = 0;
+    depthRT.mFormat = TinyImageFormat_D32_SFLOAT;
+    // DEPTH_WRITE ja no nascimento, e nada mais o tira dali — por isso NAO ha
+    // barreira de profundidade no `update()`, ao contrario do que a task 10
+    // previa. E o que o 01_Transformations do The-Forge faz: ele so barreira o
+    // render target de cor.
+    depthRT.mStartState = RESOURCE_STATE_DEPTH_WRITE;
+    depthRT.mWidth = (uint32_t)width;
+    depthRT.mHeight = (uint32_t)height;
+    depthRT.mSampleCount = SAMPLE_COUNT_1;
+    depthRT.mSampleQuality = 0;
+    // ON_TILE: o conteudo nao precisa sobreviver ao quadro (limpa todo quadro,
+    // ninguem le depois) — em GPU tiled isso evita a escrita para a memoria.
+    depthRT.mFlags = TEXTURE_CREATION_FLAG_ON_TILE;
+    depthRT.pName = "Depth Buffer";
+    addRenderTarget(pRenderer, &depthRT, &pDepthBuffer);
+}
+
+void removeGameDepthBuffer()
+{
+    if (pDepthBuffer)
+    {
+        removeRenderTarget(pRenderer, pDepthBuffer);
+        pDepthBuffer = NULL;
+    }
+}
+
 void loadGameFontSystem(const int32_t width, const int32_t height, const ReloadType loadType)
 {
     FontSystemLoadDesc fontLoad = {};
@@ -292,6 +341,9 @@ TheForgeWindowManager::TheForgeWindowManager(const TheForgeWindowDesc& desc):
     // como saber quantos, entao o casco preenche.
     m_desc.sprites.frameCount = kDataBufferCount;
     m_desc.lines.frameCount = kDataBufferCount;
+    m_desc.mesh.frameCount = kDataBufferCount;
+    gDepthEnabled = m_desc.depth.enabled;
+    gClearDepth = m_desc.depth.clearDepth;
     gClearColor[0] = m_desc.clearColor[0];
     gClearColor[1] = m_desc.clearColor[1];
     gClearColor[2] = m_desc.clearColor[2];
@@ -394,8 +446,14 @@ bool TheForgeWindowManager::initGraphics()
 
     // batchers: sprites (atlas + sampler + VB) e linhas (so VB) — ambos no-op
     // quando desligados na desc
+    // O quadro deixa de ser opaco (task 09): o renderer passa a ser alcancavel
+    // por quem precise montar pipeline proprio. Antes dos batchers so por
+    // arrumacao — nenhum deles le o forgeframe.
+    forgeframe::publish(pRenderer, kDataBufferCount);
+
     forgesprite::init(pRenderer, m_desc.sprites);
     forgeline::init(pRenderer, m_desc.lines);
+    forgemesh::init(pRenderer, m_desc.mesh);
 
     // fontes: o contexto fontstash ja existe (platformInitFontSystem no
     // init()); aqui entram a fonte e os recursos de GPU do sistema
@@ -416,6 +474,12 @@ bool TheForgeWindowManager::initGraphics()
     {
         return false;
     }
+    addGameDepthBuffer(m_width, m_height);
+    if (gDepthEnabled && !pDepthBuffer)
+    {
+        LOGF(eERROR, "[wm] depth buffer %dx%d falhou", m_width, m_height);
+        return false;
+    }
 
     loadGameFontSystem(m_width, m_height, RELOAD_TYPE_ALL);
 
@@ -425,6 +489,11 @@ bool TheForgeWindowManager::initGraphics()
                       pSwapChain->ppRenderTargets[0]->mSampleQuality);
     forgeline::load(&reloadAll, pSwapChain->ppRenderTargets[0]->mFormat, pSwapChain->ppRenderTargets[0]->mSampleCount,
                     pSwapChain->ppRenderTargets[0]->mSampleQuality);
+    // A ponte 3D recebe tambem o formato de profundidade: o pipeline dela tem
+    // `pDepthState`, e sem depth target ela se desliga em vez de desenhar nada.
+    forgemesh::load(&reloadAll, pSwapChain->ppRenderTargets[0]->mFormat, pSwapChain->ppRenderTargets[0]->mSampleCount,
+                    pSwapChain->ppRenderTargets[0]->mSampleQuality,
+                    pDepthBuffer ? pDepthBuffer->mFormat : TinyImageFormat_UNDEFINED);
 
     waitForAllResourceLoads();
     return true;
@@ -452,11 +521,18 @@ void TheForgeWindowManager::applyPendingResize()
     unloadFontSystem(RELOAD_TYPE_RESIZE);
     removeSwapChain(pRenderer, pSwapChain);
     pSwapChain = NULL;
+    removeGameDepthBuffer();
 
     addGameSwapChain(m_width, m_height);
     if (!pSwapChain)
     {
         LOGF(eERROR, "[wm] recriar swapchain %dx%d falhou", m_width, m_height);
+        exit(EXIT_FAILURE);
+    }
+    addGameDepthBuffer(m_width, m_height);
+    if (gDepthEnabled && !pDepthBuffer)
+    {
+        LOGF(eERROR, "[wm] recriar depth buffer %dx%d falhou", m_width, m_height);
         exit(EXIT_FAILURE);
     }
     loadGameFontSystem(m_width, m_height, RELOAD_TYPE_RESIZE);
@@ -495,13 +571,30 @@ void TheForgeWindowManager::update()
     BindRenderTargetsDesc bindRenderTargets = {};
     bindRenderTargets.mRenderTargetCount = 1;
     bindRenderTargets.mRenderTargets[0] = { pRenderTarget, LOAD_ACTION_CLEAR };
-    bindRenderTargets.mDepthStencil = { NULL, LOAD_ACTION_DONTCARE };
+    // Sem depth ligado isto e `{ NULL, LOAD_ACTION_DONTCARE }`, exatamente como
+    // antes da task 10 — os jogos 2D nao mudam um byte.
+    bindRenderTargets.mDepthStencil = { pDepthBuffer, pDepthBuffer ? LOAD_ACTION_CLEAR : LOAD_ACTION_DONTCARE };
     cmdBindRenderTargets(gFrameCmd, &bindRenderTargets);
     cmdSetViewport(gFrameCmd, 0.0f, 0.0f, (float)pRenderTarget->mWidth, (float)pRenderTarget->mHeight, 0.0f, 1.0f);
     cmdSetScissor(gFrameCmd, 0, 0, pRenderTarget->mWidth, pRenderTarget->mHeight);
 
+    // O quadro fica visivel de fora (task 09) DEPOIS de o alvo estar ligado e o
+    // viewport posto: quem ler o `forgeframe` ja recebe um quadro em que da para
+    // desenhar, e nao um meio-quadro.
+    forgeframe::Target frameTarget = {};
+    frameTarget.colorFormat = pRenderTarget->mFormat;
+    frameTarget.depthFormat = pDepthBuffer ? pDepthBuffer->mFormat : TinyImageFormat_UNDEFINED;
+    frameTarget.sampleCount = pRenderTarget->mSampleCount;
+    frameTarget.sampleQuality = pRenderTarget->mSampleQuality;
+    frameTarget.width = pRenderTarget->mWidth;
+    frameTarget.height = pRenderTarget->mHeight;
+    forgeframe::beginFrame(gFrameCmd, frameTarget, gFrameIndex, pRenderTarget, pDepthBuffer);
+
     forgesprite::begin(gFrameCmd, (float)pRenderTarget->mWidth, (float)pRenderTarget->mHeight, gFrameIndex);
     forgeline::begin(gFrameCmd, (float)pRenderTarget->mWidth, (float)pRenderTarget->mHeight, gFrameIndex);
+    // A ponte 3D nao recebe largura/altura: ela nao projeta de pixels, recebe
+    // matriz. E a diferenca entre as tres pontes 2D e esta, em uma assinatura.
+    forgemesh::begin(gFrameCmd, gFrameIndex);
     forgeui::beginDraw(gFrameCmd, (float)pRenderTarget->mWidth, (float)pRenderTarget->mHeight, gFontID);
 }
 
@@ -512,6 +605,7 @@ void TheForgeWindowManager::present()
     // inclusive no ultimo quadro.
     forgesprite::flush();
     forgeline::flush();
+    forgemesh::end();
 
     RenderTarget* pRenderTarget = pSwapChain->ppRenderTargets[gFrameImageIndex];
 
@@ -545,6 +639,7 @@ void TheForgeWindowManager::present()
     presentDesc.mSubmitDone = true;
     queuePresent(pGraphicsQueue, &presentDesc);
 
+    forgeframe::endFrame(); // o `cmd()` volta a ser NULL fora do quadro
     gFrameCmd = NULL;
     gFrameIndex = (gFrameIndex + 1) % kDataBufferCount;
 }
@@ -558,13 +653,16 @@ void TheForgeWindowManager::cleanup()
     ReloadDesc reloadAll = { RELOAD_TYPE_ALL };
     forgesprite::unload(&reloadAll);
     forgeline::unload(&reloadAll);
+    forgemesh::unload(&reloadAll);
 
     unloadFontSystem(RELOAD_TYPE_ALL);
     exitFontSystem();
 
     forgesprite::exit();
     forgeline::exit();
+    forgemesh::exit();
 
+    removeGameDepthBuffer();
     removeSwapChain(pRenderer, pSwapChain);
     exitGpuCmdRing(pRenderer, &gGraphicsCmdRing);
     exitSemaphore(pRenderer, pImageAcquiredSemaphore);
@@ -575,6 +673,7 @@ void TheForgeWindowManager::cleanup()
     exitQueue(pRenderer, pGraphicsQueue);
     exitRenderer(pRenderer);
     exitGPUConfiguration();
+    forgeframe::unpublish();
     pRenderer = NULL;
 
     platformExitFontSystem();

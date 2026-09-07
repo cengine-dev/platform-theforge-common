@@ -1,5 +1,9 @@
 #include "ForgeUi.h"
 
+#include "ForgeFrame.h"
+
+#include "Common_3/Utilities/Interfaces/ILog.h"
+
 #include <cstddef>
 #include <vector>
 
@@ -92,8 +96,34 @@ float textWidth(const std::string& text, const float fontSize)
     return fntMeasureFontText(desc.pText, &desc).x;
 }
 
+// Ver `drawText`. Uma vez por execucao: quem desenha fora do quadro costuma
+// desenhar fora do quadro todo quadro.
+static bool gForaDoQuadroLogado = false;
+
 void drawText(const std::string& text, const float x, const float y, const float fontSize, const uint32_t colorAbgr)
 {
+    // **FORA DO QUADRO nao se desenha.** O `forgeframe` inventou esta distincao
+    // e explica por que ela existe: *gravar comando num `Cmd` fechado nao da
+    // erro -- da corrupcao*. As tres pontes 2D nao a tinham adotado, e esta
+    // usava o `gCmd` direto.
+    //
+    // Acontece de verdade: uma cena que desenhe no `onEnter` (carga) em vez de
+    // no `draw`, ou depois do `present()`, chega aqui com `gCmd` nulo.
+    if (gCmd == NULL)
+    {
+        if (!gForaDoQuadroLogado)
+        {
+            LOGF(eWARNING, "[forgeui] drawText fora do quadro - desenhe no draw() da cena, nao na carga");
+            gForaDoQuadroLogado = true;
+        }
+        return;
+    }
+
+    // Ponte 2D = OVERLAY. Com profundidade ligada, este e o ponto em que o quadro
+    // troca para o passe sem depth (ver `forgeframe::enterOverlay`). Sem
+    // profundidade, e uma comparacao e volta.
+    forgeframe::enterOverlay();
+
     // Camadas = ordem de chamada atravessando as pontes: o que estiver pendente
     // nos batchers e desenhado AGORA, para este texto ficar por cima.
     forgesprite::flush();

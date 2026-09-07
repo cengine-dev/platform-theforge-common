@@ -54,6 +54,21 @@ struct Stats
 {
     uint32_t sprites = 0;
     uint32_t drawCalls = 0;
+
+    // **O que foi DESCARTADO por lote cheio, e o teto contra o qual medir.**
+    //
+    // Os dois campos ja existiam no `forgeline` e no `forgemesh`; este batcher
+    // -- o mais usado dos tres -- era o unico que ainda dropava sprite com um
+    // `LOGF` e mais nada. Tres irmaos com tres politicas para o mesmo evento e
+    // uma incoerencia que o consumidor paga: ele nao pode escrever um HUD de
+    // diagnostico que sirva para os tres.
+    //
+    // `dropped` conta SPRITES perdidos, e nao vertices: e o numero que responde
+    // "sumiu alguma coisa?", que e a pergunta que importa. O teto vem junto
+    // porque nenhum consumidor sabe qual e sem copiar o `maxSprites` que ele
+    // mesmo passou -- e numero copiado e numero que desencontra.
+    uint32_t dropped = 0;
+    uint32_t spriteCapacity = 0;
 };
 
 // --- ciclo de vida (chamado pelo casco da plataforma) ---

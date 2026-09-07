@@ -85,6 +85,11 @@ bool AudioPlayer::init(std::vector<std::vector<int16_t>> samples)
 {
     // A tabela vem PRONTA do jogo (receitas via synth/concat): o mecanismo nao
     // sabe o que e um "pulo" ou uma "espada" — so toca o indice pedido.
+    // Um `init()` sobre outro ja aberto vazava o `Impl` anterior -- e, pior,
+    // trocava o `m_samples` que as vozes vivas estavam LENDO (o XAudio2 le o
+    // buffer direto dali, sem copiar). Fechar antes e a unica ordem segura.
+    shutdown();
+
     m_samples = std::move(samples);
 
     auto* impl = new Impl();
@@ -135,11 +140,30 @@ bool AudioPlayer::init(std::vector<std::vector<int16_t>> samples)
 
 void AudioPlayer::shutdown()
 {
-    if (!m_impl)
+    // **O COM sai FORA da guarda do `m_impl`, e essa e a correcao.**
+    //
+    // Ate aqui esta funcao comecava com `if (!m_impl) return;` -- e um `init()`
+    // que falhasse depois do `CoInitializeEx` (sem placa de som, XAudio2 que nao
+    // abre) devolvia `false` com `m_impl` nulo. O `CoUninitialize` nunca
+    // acontecia: o apartamento COM ficava inicializado pelo resto do processo,
+    // JUSTO no caminho que o cabecalho descreve como "degradacao normal".
+    //
+    // A ordem importa: as vozes primeiro (elas leem `m_samples`), o COM por
+    // ultimo.
+    if (m_impl)
     {
-        return;
+        desligarVozes();
     }
 
+    if (m_ownsCom)
+    {
+        CoUninitialize();
+        m_ownsCom = false;
+    }
+}
+
+void AudioPlayer::desligarVozes()
+{
     for (auto& voice: m_impl->voices)
     {
         if (voice)
@@ -161,12 +185,6 @@ void AudioPlayer::shutdown()
 
     delete m_impl;
     m_impl = nullptr;
-
-    if (m_ownsCom)
-    {
-        CoUninitialize();
-        m_ownsCom = false;
-    }
 }
 
 void AudioPlayer::play(const cengine::audio::SoundId id)

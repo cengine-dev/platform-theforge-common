@@ -21,3 +21,11 @@
 #frag line.frag
 #include "line.frag.fsl"
 #end
+
+#vert mesh.vert
+#include "mesh.vert.fsl"
+#end
+
+#frag mesh.frag
+#include "mesh.frag.fsl"
+#end

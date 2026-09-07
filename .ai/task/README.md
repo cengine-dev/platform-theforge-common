@@ -15,6 +15,100 @@ The Forge usado pelos jogos de estudo.
 | 06 | [Escritor de DDS compartilhado (tools)](06-atlas-dds-writer.md) | done (0.5.0) | Ferramentas |
 | 07 | [Paint.ps1: helpers de pintura dos tools](07-paint-helpers.md) | done (0.7.0; `Paint-Mask` na 0.11.0) | Ferramentas |
 | 08 | [ForgeUi delega o ARRASTAR para a cengine::input](08-drag-via-cengine-input.md) | done (0.12.0) | Plataforma |
+| 09 | [O casco expoe o QUADRO (forgeframe)](09-expor-o-quadro.md) | **done (0.16.0, corrigida na 0.17.0)** | Plataforma / 3D |
+| 10 | [Depth buffer opt-in](10-depth-buffer.md) | **done (0.17.0)** | Plataforma / 3D |
+| 11 | [forgemesh: a malha na GPU, com shader que le matriz](11-forgemesh.md) | **done (0.18.0)** | Plataforma / 3D |
+| 12 | [Material e textura](12-material-e-textura.md) | **done (0.22.0)** | Plataforma / 3D |
+| 13 | [A luz posicionavel](13-a-luz.md) | **done (0.21.0)** | Plataforma / 3D |
+| 14 | [Esqueleto e animacao, com skinning na GPU](14-esqueleto-e-animacao.md) | todo | Plataforma / 3D |
+| 15 | [forgemesh: variantes, e um layout de vertice SO](15-forgemesh-variantes.md) | **15a done (0.20.1); 15b espera a task 12** | Plataforma / 3D |
+| 16 | [O casco ganha um ALVO DE BUILD](16-alvo-de-build.md) | **done (0.20.0)** | Plataforma / Infra |
+| 17 | [Como o forgemesh entrega a matriz por objeto](17-instancias-do-forgemesh.md) | **adiada, com gatilho** | Plataforma / 3D |
+| 18 | [O conjunto se chama `PerFrame` e nao e](18-frequencias-do-uniforme.md) | **todo — a 12 confirmou; pronta** | Plataforma / 3D |
+| 19 | [O modo de conferencia nao devia ser um `if` por pixel](19-o-modo-de-conferencia.md) | **todo — espera a 15b** | Plataforma / 3D |
+| 20 | [Liberar malha e material](20-liberar-malha-e-material.md) | **todo** — item de spec da 11 nunca feito | Plataforma / 3D |
+
+## As tres tasks de DIVIDA (15-17), registradas em 2026-09-06
+
+Sairam de uma pergunta do dono depois do degrau 05 do `diorama`: *"algum ponto
+que ficou mal arquitetado?"*. As tres sao consequencia das tasks 09-11, e a
+ordem entre elas importa:
+
+**A ordem foi revista em 2026-09-06**, ao separar o que pode mudar de rumo do
+que nao pode:
+
+| ordem | | risco de mudar de rumo | quando |
+|---|---|---|---|
+| **1o** | **16** alvo de build | nenhum | **FEITA (0.20.0)** |
+| **2o** | **15a** o layout numa funcao so | nenhum | **FEITA (0.20.1)** |
+| — | **15b** a maquina de variantes | **alto** — a task 12 e que define os eixos de verdade | quando a 12 forcar |
+| — | **17** instancias | **alto** — depende de o material precisar de descriptor por desenho (task 12) | **adiada, gatilho mensuravel** |
+| — | **18** frequencias do uniforme | — | **a 12 chegou e confirmou**: pronta |
+| — | **19** o modo de conferencia | — | espera a **15b** (e onde a variante cabe) |
+
+> **A 20 saiu da revisao do degrau 07** (2026-09-07), junto com duas correcoes
+> feitas na hora: o religamento de material que ligava `NULL` em vez do mapa
+> padrao (**bug real, ainda nao disparado**), e o `loadMaterial` que falhava
+> calado. A revisao tambem confirmou o diagnostico da 18 e piorou o da 19.
+>
+> **As 18 e 19 sairam da revisao do degrau 06**, junto com duas correcoes que
+> foram feitas na hora (a divisao por pi que faltava no Lambert, e a intensidade
+> guardada em dois campos). As tres adiadas convergem na task 12: e ela que traz
+> a frequencia de MATERIAL, e sem ela qualquer separacao seria adivinhacao.
+
+**A 16 vem primeiro e nao e detalhe de ordem.** Enquanto a regra "nunca
+acrescente um `.cpp`" valer, todo modulo novo nasce header-only por imposicao de
+build, e nao por desenho — inclusive a implementacao da 15. Fazer a 15 antes e
+escrever codigo que a 16 vai querer mover.
+
+A 15 tambem fecha um defeito que **ja existe**: o `VertexLayout` escrito duas
+vezes no `ForgeMesh.h`, com a mesma assinatura de falha silenciosa que produziu
+os cubos pretos do degrau 04.
+
+## O pipeline 3D (tasks 09-14), registrado em 2026-09-03
+
+As seis nascem juntas, do teto que o **Vigil** mediu ao fechar o degrau 24 (ver
+`vigil/.ai/task/24-a-cena-em-3d.md`, secao *"Por que este degrau fechou o
+projeto"*). Elas nao sao seis ideias: sao **uma ordem**, e a ordem foi
+descoberta, nao escolhida.
+
+> **O bloqueio nunca foi o formato do asset: e a superficie deste casco.** O
+> `AssetPipelineCmd` ja produz `.bin`, `skeleton.ozz`, `<nome>.ozz` e `.dds`; o
+> The-Forge ja sobe a malha para a GPU. O Vigil pedia `SHADOWED` para ter copia
+> na CPU e **ignorava os buffers de GPU**, porque nao tinha onde desenha-los.
+
+Cinco das seis **apagam mais codigo do que acrescentam** -- so a 09 e pura
+adicao, e ela existe para que as outras cinco possam apagar. Consumidor de
+validacao: o lab **`diorama`**, um degrau por task.
+
+**Nenhum jogo 2D e afetado.** As tres portas novas (`depth`, `forgemesh`, e o
+`forgeframe`) sao opt-in por desc, exatamente como `sprites` e `lines` ja sao.
+
+### A regra que protege os consumidores, e por que ela e mais forte aqui
+
+Este casco **nao e dependencia versionada: e um checkout IRMAO em disco.** Todo
+consumidor compila contra o que estiver em `../platform-theforge-common`, sem
+pinagem. Nao ha `>= 0.12.0` que o build respeite -- ha o que esta na pasta.
+
+Consequencia: **evoluir este repo muda o insumo de build de todos os jogos, sem
+tocar em nenhum deles.** O ADR 0003 da cengine congela consumidores como
+documentacao viva; aqui nao existe mecanismo que faca esse congelamento valer.
+
+Dai duas regras para as tasks 10-14:
+
+1. **Toda porta nova nasce DESLIGADA por desc.** O consumidor que nao pediu nada
+   tem de compilar e rodar identico. A task 10 (depth buffer) e o caso critico:
+   ela mexe em `addGameSwapChain` e `applyPendingResize`, que todo jogo 2D
+   executa -- com `depth.enabled = false` nenhum render target e criado e o
+   `mDepthStencil` segue `NULL`, como sempre foi.
+2. **Compatibilidade se prova pelo DIFF, nao buildando projeto alheio.** Nenhum
+   simbolo removido, nenhuma assinatura mudada, nenhum default alterado. Se a
+   compatibilidade nao se ler no diff, a mudanca deixou de ser aditiva -- e o
+   problema e esse, nao a falta do build.
+
+Os outros projetos do workspace sao **referencia**: servem para ler, citar e
+aprender. O lab que valida estas tasks e o `diorama`, e e o unico que este repo
+tem o direito de buildar.
 
 ## Candidatas (mesma disciplina da ADR 0002 da cengine)
 

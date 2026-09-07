@@ -1,0 +1,81 @@
+// Vertex shader do forgemesh.
+//
+// Duas linhas de trabalho, e as duas eram impossiveis antes da task 09:
+//
+//   1. a posicao passa por uma MATRIZ vinda de constant buffer -- entao a
+//      geometria fica parada na GPU e so a matriz viaja por quadro;
+//   2. a NORMAL do arquivo atravessa para o fragment, ja em espaco de MUNDO --
+//      e a normal por VERTICE, a que o autor modelou, e nao uma normal por face
+//      recalculada na CPU.
+//
+// A distincao do item 2 custou um degrau ao Vigil: normal por face e normal por
+// vertice so coincidem em superficie facetada, e o que se modela no Blender e
+// suave.
+
+// `decodeDir` e `unpackUnorm2x16` vem daqui. O caminho e o mesmo numero de
+// niveis do `defaults.h` no Shaders.list.
+#include "../../../../../The-Forge/Common_3/Graphics/ShaderUtilities.h.fsl"
+
+#include "mesh.srt.h"
+
+STRUCT(VSInput)
+{
+    DATA(float3, Position, POSITION);
+    // **`uint`, e nao `float3`.** O AssetPipelineCmd grava a normal EMPACOTADA
+    // em 4 bytes (octaedral, dois unorm de 16 bits). Medido nos quatro `.bin`
+    // do banco de provas do lab: `POSITION stride=12`, `NORMAL stride=4`.
+    //
+    // Isto TEM de casar com o `TinyImageFormat_R32_UINT` do VertexLayout no
+    // `ForgeMesh.h` -- ver o comentario de la, que explica por que errar aqui
+    // nao produz erro nenhum num build Release.
+    DATA(uint, Normal, NORMAL);
+
+    // Tangente e UV, tambem EMPACOTADAS -- medido nos `.bin` do banco de provas
+    // (`TANGENT stride=4`, `TEXCOORD0 stride=4`). A tangente usa a mesma
+    // codificacao octaedral da normal (o `AssetPipeline` trata as duas no mesmo
+    // ramo); a UV sao dois `half`.
+    DATA(uint, Tangent, TANGENT);
+    DATA(uint, UV, TEXCOORD0);
+};
+
+STRUCT(VSOutput)
+{
+    DATA(float4, Position, SV_Position);
+    // A normal e a tangente ja em espaco de MUNDO (task 13): e la que a luz
+    // vive. Fazer a conversao aqui custa uma multiplicacao por VERTICE em vez de
+    // por PIXEL.
+    DATA(float3, Normal, NORMAL);
+    DATA(float3, Tangent, TANGENT);
+    DATA(float2, UV, TEXCOORD0);
+};
+
+ROOT_SIGNATURE(DefaultRootSignature)
+VSOutput VS_MAIN(VSInput In)
+{
+    INIT_MAIN;
+    VSOutput Out;
+    Out.Position = mul(gMalha.mvp, float4(In.Position, 1.0f));
+    // Desempacota a normal octaedral e a leva ao espaco de MUNDO.
+    //
+    // O `0.0f` na quarta componente e o que faz disto uma DIRECAO e nao um
+    // ponto: a translacao da matriz e ignorada. Pondo `1.0f` ali, a normal
+    // ganharia a posicao do objeto e a iluminacao mudaria com a translacao --
+    // uma imagem plausivel, e errada.
+    const float3 normalDeModelo = decodeDir(unpackUnorm2x16(In.Normal));
+    Out.Normal = mul(gMalha.modelo, float4(normalDeModelo, 0.0f)).xyz;
+
+    // A tangente vai pelo mesmo caminho. **A HANDEDNESS se perdeu**: o glTF
+    // guarda a tangente como `float4` com `w = +-1` dizendo de que lado fica a
+    // bitangente, e o empacotamento octaedral do `AssetPipeline` so carrega a
+    // direcao. A bitangente e reconstruida como `cross(N, T)` no fragment, o que
+    // assume `w = +1` -- e erra o sinal em malha com UV espelhada.
+    const float3 tangenteDeModelo = decodeDir(unpackUnorm2x16(In.Tangent));
+    Out.Tangent = mul(gMalha.modelo, float4(tangenteDeModelo, 0.0f)).xyz;
+
+    // `unpack2Floats` e `unpackHalf2x16`: a UV NAO e unorm (pode passar de 1
+    // quando a textura repete), entao usar o `unpackUnorm2x16` da normal aqui
+    // grampearia as coordenadas em [0,1] -- e o defeito apareceria so em modelo
+    // com UV fora do quadrado.
+    Out.UV = unpack2Floats(In.UV);
+    RETURN(Out);
+}

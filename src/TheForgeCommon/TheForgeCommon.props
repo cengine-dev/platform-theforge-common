@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  TheForgeCommon.props — O CASCO SE DESCREVE (task 16).
+
+  ## O problema que este arquivo resolve
+
+  Ate aqui este repo NAO TINHA ALVO DE BUILD: cada jogo enumerava os `.cpp` do
+  casco no proprio `.vcxproj`. A consequencia foi medida na task 09 — **um
+  `.cpp` novo aqui nunca era aditivo.** Ele era sempre uma edicao obrigatoria em
+  8+ projetos que ja existem, por mais aditivo que o codigo fosse. A 0.16.0
+  quebrou o link de todos eles ao acrescentar `ForgeFrame.cpp`, e o diff nao
+  acusou porque a leitura procurava simbolo REMOVIDO.
+
+  A resposta de entao foi tornar os modulos novos "so cabecalho". Aquilo tratava
+  o SINTOMA: a regra "nunca acrescente um `.cpp`" e uma regra sobre o build
+  disfarcada de regra sobre codigo, e enquanto ela valer o desenho de cada
+  modulo novo e decidido por uma limitacao de `.vcxproj`.
+
+  ## Como usar
+
+  Uma linha no `.vcxproj`, ANTES do `<ItemDefinitionGroup>` do projeto (para que
+  o `%(AdditionalIncludeDirectories)` de la herde o que este arquivo poe):
+
+      <Import Project="$(CommonRoot)src\TheForgeCommon\TheForgeCommon.props" />
+
+  ## A adocao e OPT-IN, e isso e deliberado
+
+  Este arquivo NAO substitui nada: as listas explicitas que os jogos ja tem
+  continuam funcionando exatamente como antes. Ele e uma segunda forma de dizer
+  a mesma coisa.
+
+  Assim nenhum projeto de referencia precisa ser tocado — e a fronteira do
+  workspace (`vigil`, os 14 jogos e o `creative-lab` sao REFERENCIA: ler, citar,
+  nunca buildar nem modificar) fica preservada. Cada projeto adota quando
+  alguem voltar a toca-lo, se voltar.
+
+  ## O que este arquivo NAO contem
+
+  **Nada da cengine.** Ela e outro repo, com os modulos opt-in dela; quem
+  escolhe quais linkar e o consumidor, e o casco nao tem opiniao sobre isso.
+
+  **Nada de configuracao.** Sem flags de compilador, sem definicoes, sem
+  configuracao de link. Este arquivo diz QUAIS ARQUIVOS o casco tem — e so.
+  Configuracao e do projeto, e misturar as duas coisas transformaria um `.props`
+  de fontes num `.props` com opiniao.
+-->
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!-- Auto-localizavel: `$(MSBuildThisFileDirectory)` e a pasta DESTE arquivo,
+       entao o casco nao depende de o consumidor ter definido `$(CommonRoot)`
+       (que, num .vcxproj tipico, so existe DEPOIS dos property sheets). -->
+  <PropertyGroup>
+    <TheForgeCommonDir>$(MSBuildThisFileDirectory)</TheForgeCommonDir>
+  </PropertyGroup>
+
+  <!-- As pontes de desenho e o casco da janela: as unidades que TODO consumidor
+       compila, sem nada a decidir. O audio esta no ItemGroup opt-in logo abaixo,
+       e o porque esta escrito la.
+
+       O `ForgeFrame.h` e o `ForgeMesh.h` NAO aparecem aqui: sao so cabecalho
+       (`inline`). Depois desta task isso volta a ser uma ESCOLHA — ainda pode
+       ser a certa para um modulo pequeno — e deixa de ser imposicao. -->
+  <ItemGroup>
+    <ClCompile Include="$(TheForgeCommonDir)TheForgeWindowManager.cpp" />
+    <ClCompile Include="$(TheForgeCommonDir)ForgeUi.cpp" />
+    <ClCompile Include="$(TheForgeCommonDir)ForgeSpriteUi.cpp" />
+    <ClCompile Include="$(TheForgeCommonDir)ForgeLineUi.cpp" />
+  </ItemGroup>
+
+  <!-- O BACKEND DE AUDIO, e ele nasce DESLIGADO.
+
+       O `ForgeAudio.cpp` faltava nesta lista, e o arquivo promete dizer QUAIS
+       ARQUIVOS o casco tem. Mas acrescenta-lo ao ItemGroup de cima QUEBRA todo
+       consumidor, e a tentativa de fazer isso e que mostrou por que:
+
+         ForgeAudio.h(7): fatal error C1083: nao e possivel abrir
+         'cengine/audio/Player.hpp'
+
+       Ele e o unico `.cpp` do casco que depende de um modulo da cengine, e este
+       arquivo declara, com todas as letras, que nao carrega "nada da cengine" —
+       quem escolhe os modulos e o consumidor. Compilar a unidade obriga quem
+       importa a por `modules\audio\include` no caminho, e nenhum dos que existem
+       hoje o faz.
+
+       Dai a regra da casa, a mesma das portas do `TheForgeWindowDesc`: nasce
+       desligado. Sem a propriedade, esta props e byte por byte a de antes. Com
+       ela, o consumidor esta dizendo "eu ja linko a cengine::audio":
+
+           <PropertyGroup>
+             <TheForgeCommonAudio>true</TheForgeCommonAudio>
+           </PropertyGroup>
+           <Import Project="$(CommonRoot)src\TheForgeCommon\TheForgeCommon.props" />
+
+       A licao vale alem do audio: **a lista de arquivos do casco nao e uma lista
+       plana.** Um `.cpp` daqui pode exigir do consumidor algo que este arquivo se
+       proibiu de fornecer, e a diferenca entre "o casco tem" e "o casco entrega"
+       e exatamente onde a task 09 ja tinha tropecado uma vez. -->
+  <ItemGroup Condition="'$(TheForgeCommonAudio)' == 'true'">
+    <ClCompile Include="$(TheForgeCommonDir)ForgeAudio.cpp" />
+  </ItemGroup>
+
+  <!-- Os shaders do casco (sprite, line, mesh) mais os rootsigs padrao.
+
+       A lista se chama `Shaders.list`, e o consumidor que tiver uma propria TEM
+       de dar outro nome a dela: o `fsl.py:156` nomeia o arquivo de dependencias
+       pelo BASENAME da lista, dentro do diretorio de saida compartilhado. Duas
+       listas homonimas usam o mesmo `.deps`, e a segunda conclui "em dia" e
+       **retorna 0 sem gerar nada e sem imprimir nada**. O proprio The-Forge
+       nomeia as dele distintamente (`AnimationShaders.list`, `FontShaders.list`)
+       — nao e estilo, e defesa. -->
+  <ItemGroup>
+    <FSLShader Include="$(TheForgeCommonDir)Shaders\FSL\Shaders.list" />
+  </ItemGroup>
+
+  <!-- Os cabecalhos do casco no include path. O `%(...)` no fim preserva o que
+       ja estava la; o `ItemDefinitionGroup` do projeto que importa este arquivo
+       herda daqui, desde que o Import venha ANTES dele. -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(TheForgeCommonDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+</Project>

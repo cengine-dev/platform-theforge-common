@@ -25,7 +25,35 @@
 #include <cengine/core/IWindowManager.hpp>
 
 #include "ForgeLineUi.h"
+#include "ForgeMeshDesc.h"
 #include "ForgeSpriteUi.h"
+
+/// Profundidade do quadro (task 10). **Nasce DESLIGADA**, e isso e regra da
+/// casa: o casco e um checkout IRMAO em disco, sem pinagem de versao — todo jogo
+/// compila contra o que estiver la. Porta nova que nasce ligada muda o insumo de
+/// build de 8+ consumidores sem que ninguem tenha pedido.
+///
+/// Desligada, nenhum render target de profundidade e alocado e o
+/// `mDepthStencil` do quadro segue NULL — byte por byte o comportamento
+/// anterior. Mesmo espirito do `atlasPath` nulo do forgesprite.
+struct TheForgeDepthDesc
+{
+    bool enabled = false;
+
+    /// Valor de limpeza do depth buffer a cada quadro.
+    ///
+    /// **Este campo e METADE de uma decisao; a outra metade esta no
+    /// `DepthStateDesc` do pipeline do consumidor, e as duas TEM de combinar:**
+    ///
+    /// | convencao | clearDepth | mDepthFunc | projecao |
+    /// |---|---|---|---|
+    /// | Z padrao (default daqui) | `1.0f` | `CMP_LEQUAL` | `mat4::perspectiveLH` |
+    /// | Z invertido (samples do The-Forge) | `0.0f` | `CMP_GEQUAL` | `perspectiveLH_ReverseZ` |
+    ///
+    /// Combinar errado nao da erro: da **tudo desenhando** ou **nada
+    /// desenhando**, que sao dois sintomas em que ninguem suspeita do clear.
+    float clearDepth = 1.0f;
+};
 
 // Configuracao do casco — montada pelo composition root do jogo. Os const
 // char* devem apontar para literais/strings vivos durante toda a execucao.
@@ -50,6 +78,15 @@ struct TheForgeWindowDesc
     // Batcher de linhas (wireframe vetorial): enabled=false desliga.
     // O frameCount tambem e preenchido pelo casco.
     forgeline::LineBatcherDesc lines = {};
+
+    // Profundidade: enabled=false desliga (o default; ver TheForgeDepthDesc).
+    TheForgeDepthDesc depth = {};
+
+    // Ponte 3D (malha do AssetPipelineCmd): enabled=false desliga.
+    // **Exige `depth.enabled = true`** — malha sem profundidade e ordem do
+    // pintor, e o forgemesh recusa em vez de desenhar algo plausivel e errado.
+    // O frameCount tambem e preenchido pelo casco.
+    forgemesh::MeshBatcherDesc mesh = {};
 
     // Cor de clear do swapchain (RGBA 0..1).
     float clearColor[4] = { 0.02f, 0.02f, 0.05f, 1.0f };

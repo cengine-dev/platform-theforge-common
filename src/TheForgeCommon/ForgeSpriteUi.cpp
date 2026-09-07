@@ -1,5 +1,7 @@
 #include "ForgeSpriteUi.h"
 
+#include "ForgeFrame.h"
+
 #include <cstring>
 #include <string>
 #include <vector>
@@ -49,6 +51,7 @@ uint32_t gBaseVertex = 0;   // inicio do trecho deste frame no vertex buffer
 uint32_t gFlushedVerts = 0; // ja desenhados neste quadro (cursor)
 uint32_t gPendingVerts = 0; // acumulados aguardando flush
 bool     gOverflowLogged = false;
+bool     gForaDoQuadroLogado = false;
 
 forgesprite::Stats gCurrent = {};
 forgesprite::Stats gLastFrame = {};
@@ -209,15 +212,29 @@ void unload(const ReloadDesc* reloadDesc)
         return;
     }
 
+    // Zerar depois de remover: dois `unload` seguidos passavam o mesmo ponteiro
+    // duas vezes. O `forgemesh` ja fazia assim; este e o `forgeline` nao.
     if (reloadDesc->mType & (RELOAD_TYPE_SHADER | RELOAD_TYPE_RENDERTARGET))
     {
-        removePipeline(gRenderer, gPipeline);
+        if (gPipeline)
+        {
+            removePipeline(gRenderer, gPipeline);
+            gPipeline = NULL;
+        }
     }
 
     if (reloadDesc->mType & RELOAD_TYPE_SHADER)
     {
-        removeShader(gRenderer, gShader);
-        removeDescriptorSet(gRenderer, gDescriptorSet);
+        if (gShader)
+        {
+            removeShader(gRenderer, gShader);
+            gShader = NULL;
+        }
+        if (gDescriptorSet)
+        {
+            removeDescriptorSet(gRenderer, gDescriptorSet);
+            gDescriptorSet = NULL;
+        }
     }
 }
 
@@ -235,7 +252,11 @@ void begin(Cmd* cmd, const float width, const float height, const uint32_t frame
     gBaseVertex = frameIndex * gMaxVerts;
     gFlushedVerts = 0;
     gPendingVerts = 0;
-    gOverflowLogged = false;
+    // **O `gOverflowLogged` NAO e resetado aqui.** Ele era, e isso fazia o aviso
+    // sair uma vez por QUADRO -- 60 linhas por segundo no arquivo de log,
+    // exatamente quando o jogo ja esta em apuros. Quem responde "esta
+    // acontecendo AGORA?" e o `Stats::dropped`, que e por quadro; o log so
+    // precisa dizer "aconteceu". Mesma politica do `forgemesh`.
 
     gLastFrame = gCurrent;
     gCurrent = {};
@@ -254,6 +275,21 @@ void drawSpriteRect(const SpriteRegion& region, const float x, const float y, co
         return;
     }
 
+    // **Fora do quadro, e a divisao por zero que vem junto.** Antes do primeiro
+    // `begin()` o `gWidth`/`gHeight` valem 0.0f, e as quatro contas de NDC
+    // abaixo emitiam `inf`/`NaN` direto para o vertex buffer -- sem erro, sem
+    // log, e com o sprite sumindo da tela por um motivo que nao aparece em lugar
+    // nenhum. Mesma guarda que o `flush()` deste arquivo ja fazia.
+    if (gCmd == NULL || gWidth <= 0.0f || gHeight <= 0.0f)
+    {
+        if (!gForaDoQuadroLogado)
+        {
+            LOGF(eWARNING, "[forgesprite] drawSprite fora do quadro - desenhe no draw() da cena, nao na carga");
+            gForaDoQuadroLogado = true;
+        }
+        return;
+    }
+
     if (gFlushedVerts + gPendingVerts + kVertsPerSprite > gMaxVerts)
     {
         if (!gOverflowLogged)
@@ -261,6 +297,7 @@ void drawSpriteRect(const SpriteRegion& region, const float x, const float y, co
             LOGF(eWARNING, "[forgesprite] lote cheio (%u sprites) — sprite dropado", gMaxSprites);
             gOverflowLogged = true;
         }
+        ++gCurrent.dropped;
         return;
     }
 
@@ -293,6 +330,11 @@ void flush()
         return;
     }
 
+    // Ponte 2D = OVERLAY. Com profundidade ligada, este e o ponto em que o quadro
+    // troca para o passe sem depth (ver `forgeframe::enterOverlay`). Sem
+    // profundidade, e uma comparacao e volta.
+    forgeframe::enterOverlay();
+
     // copia so o lote pendente para o trecho deste frame, a partir do cursor
     BufferUpdateDesc update = { gVertexBuffer, (uint64_t)(gBaseVertex + gFlushedVerts) * sizeof(SpriteVertex),
                                 (uint64_t)gPendingVerts * sizeof(SpriteVertex) };
@@ -311,6 +353,15 @@ void flush()
     ++gCurrent.drawCalls;
 }
 
-Stats lastFrameStats() { return gLastFrame; }
+Stats lastFrameStats()
+{
+    // O teto e respondido na LEITURA, e nao acumulado por quadro: ele nao muda
+    // durante a vida do batcher, e assim o primeiro quadro (que ainda nao teve
+    // um `begin` anterior) ja devolve um teto valido em vez de zero. Mesma
+    // escolha do forgeline e do forgemesh.
+    Stats stats = gLastFrame;
+    stats.spriteCapacity = gMaxSprites;
+    return stats;
+}
 
 } // namespace forgesprite

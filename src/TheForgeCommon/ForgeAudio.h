@@ -74,6 +74,11 @@ public:
     [[nodiscard]] uint32_t lastError() const { return m_lastError; }
 
 private:
+    /// Para e destroi as vozes do pool. Separado do `shutdown()` porque o COM
+    /// tem de ser liberado mesmo quando nao houve pool nenhum (o `init()` que
+    /// falhou depois do `CoInitializeEx`).
+    void desligarVozes();
+
     struct Impl;
     Impl* m_impl = nullptr; // pimpl: os headers do XAudio2 nao vazam para as cenas
 

@@ -1,0 +1,128 @@
+// Fragment shader do forgemesh: **material mais uma direcional mais uma
+// ambiente** (tasks 12 e 13).
+//
+// Direcional + ambiente e o menor conjunto que responde "de onde vem a luz?", e
+// e exatamente o que o Blender chama de Sun + World. Nao ha sistema de luzes
+// aqui, e nao vai haver: uma lista de luzes e uma decisao de JOGO, e o casco nao
+// tem opiniao sobre quantas luzes uma cena tem.
+//
+// ## Sem mapa NAO e um caso especial (task 12)
+//
+// O material sempre liga duas texturas. Sem mapa de cor, o mapa e **branco 1x1**
+// e sobra o fator; sem mapa de normal, o mapa e **plano 1x1** e sobra a normal
+// do vertice. Nenhum `if`, nenhuma variante de pipeline.
+//
+// E assim que *"material sem mapa e um valor constante, nao um erro"* -- a frase
+// que a task 12 escreveu antes de a task existir -- se realiza sem ramo.
+//
+// ## O SWIZZLE do normal map, e ele foi medido no degrau 01
+//
+// A `-pt --normalmap` do `AssetPipelineCmd` grava `swizzle = {x,x,x,y}`:
+// **X nos tres canais de cor, Y no alfa, Z reconstruido em runtime**. Assumir
+// `RGB = XYZ` -- que e o que quase todo tutorial diz -- ilumina para o lado
+// errado, e a imagem continua parecendo uma imagem com relevo.
+//
+// ## O modo de CONFERENCIA (`albedo.w == 0`)
+//
+// Com o material desligado, a cor E `normal * 0.5 + 0.5`, **crua, sem passar
+// pela luz** -- o instrumento que os degraus 04, 05 e 06 usaram. Ele permite
+// conferir **a malha e o material separadamente**; misturados, a pergunta "o que
+// esta errado, o mapa ou a luz?" nao teria resposta.
+//
+// A saida antecipada tambem tira o ramo do caminho quente: o modo normal nao
+// paga mais um `lerp` por pixel para escolher entre duas coisas que nunca se
+// misturam de verdade.
+//
+// (Ele devia ser variante de pipeline, e nao um ramo por pixel -- **task 19**.)
+//
+// ## O que NAO bate com o Blender, e fica escrito
+//
+// O **mapeamento de tom** do Eevee (AgX/Filmic), que comprime as altas e
+// desatura. A faixa e a mesma e o contraste entre faces e comparavel, que e o
+// que "paridade de FORMA" quer dizer.
+//
+// E **nao ha metallic nem roughness**: os dois exigem um BRDF especular, e este
+// shader e Lambert. Poe-los na struct sem um BRDF que os leia seria enfeite.
+// Ver a task 12 do casco, secao "o que ficou de fora".
+
+#include "../../../../../The-Forge/Common_3/Graphics/ShaderUtilities.h.fsl"
+
+#include "mesh.srt.h"
+
+// O FSL nao garante um `PI`; declarar aqui evita depender de um define do
+// backend que pode nao existir em todos.
+#define PI 3.14159265358979323846f
+
+STRUCT(PSInput)
+{
+    DATA(float4, Position, SV_Position);
+    DATA(float3, Normal, NORMAL);
+    DATA(float3, Tangent, TANGENT);
+    DATA(float2, UV, TEXCOORD0);
+};
+
+ROOT_SIGNATURE(DefaultRootSignature)
+float4 PS_MAIN(PSInput In)
+{
+    INIT_MAIN;
+
+    // Renormaliza: interpolar duas normais unitarias nao devolve unitaria, e a
+    // matriz de modelo pode ter mudado a escala.
+    float3 n = normalize(In.Normal);
+
+    // --- o normal map, em espaco TANGENTE ---
+    //
+    // O swizzle e `{x,x,x,y}`: X em qualquer canal de cor, Y no alfa. Z se
+    // reconstroi porque a normal e unitaria e aponta para fora da superficie.
+    float4 mapa = SampleTex2D(gMapaDeNormal, gSamplerTrilinearWrap, In.UV);
+    float2 nxy = float2(mapa.r * 2.0f - 1.0f,  // X: qualquer canal de cor
+                        mapa.a * 2.0f - 1.0f); // **Y: o ALFA**
+    float  nz = sqrt(saturate(1.0f - dot(nxy, nxy)));
+    float3 tangente = normalize(In.Tangent - n * dot(n, In.Tangent)); // Gram-Schmidt
+
+    // A bitangente assume handedness +1: o `w` do glTF se perdeu no
+    // empacotamento octaedral (ver `mesh.vert.fsl`). Erra o sinal em UV
+    // espelhada.
+    float3 bitangente = cross(n, tangente);
+    n = normalize(tangente * nxy.x + bitangente * nxy.y + n * nz);
+
+    // --- a luz ---
+    //
+    // `luzDirecao.xyz` aponta **de onde a luz vem**, entao o `dot` e direto.
+    float nDotL = max(dot(n, gMalha.luzDirecao.xyz), 0.0f);
+
+    // **O `1/pi` NAO e cosmetico.** A `intensity` da direcional e IRRADIANCIA
+    // (W/m2), que e o que o `energy` do Sun do Blender significa; a radiancia
+    // que sai de uma superficie lambertiana e `albedo/pi * irradiancia * NdotL`.
+    //
+    // Sem esta divisao, os numeros do rig (intensidade 3.0, albedo 0.75) dao
+    // **2.39** numa face totalmente iluminada, e saturam a partir de
+    // `nDotL = 0.384` -- toda face a menos de 67 graus da luz sai BRANCO PURO.
+    float3 direta = gMalha.luzCor.rgb * gMalha.luzCor.a * nDotL * (1.0f / PI);
+
+    // **A ambiente NAO divide.** Para um ambiente uniforme de radiancia L, a
+    // irradiancia e `pi * L`, e o `pi` cancela com o do BSDF.
+    float3 ambiente = gMalha.ambiente.rgb * gMalha.ambiente.a;
+
+    // --- a cor base: mapa vezes fator ---
+    float3 cor = SampleTex2D(gMapaDeCor, gSamplerTrilinearWrap, In.UV).rgb * gMalha.albedo.rgb;
+
+    // `albedo.w == 0` = modo de conferencia: a cor E a normal (a do VERTICE,
+    // sem o mapa -- e a malha que se quer conferir, nao o material).
+    //
+    // **E ela sai SEM ILUMINACAO.** Ate aqui o resultado era multiplicado por
+    // `(direta + ambiente)` junto com todo o resto, e isso quebrava a promessa
+    // do proprio modo: ele existe para *"conferir a malha e o material
+    // separadamente"*, e uma normal multiplicada pela luz responde as duas
+    // perguntas de uma vez -- que e nao responder nenhuma.
+    //
+    // Nos degraus 04 e 05 do `diorama` estava certo por acidente: nao havia luz
+    // nenhuma. A task 13 acrescentou a luz e o instrumento de medicao passou a
+    // depender do que ele deveria isolar, sem que nada acusasse.
+    if (gMalha.albedo.a < 0.5f)
+    {
+        RETURN(float4(normalize(In.Normal) * 0.5f + 0.5f, 1.0f));
+    }
+
+    RETURN(float4(cor * (direta + ambiente), 1.0f));
+}

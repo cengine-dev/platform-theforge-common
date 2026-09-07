@@ -1,5 +1,7 @@
 #include "ForgeLineUi.h"
 
+#include "ForgeFrame.h"
+
 #include <cstring>
 #include <vector>
 
@@ -42,6 +44,7 @@ uint32_t gBaseVertex = 0;   // inicio do trecho deste frame no vertex buffer
 uint32_t gFlushedVerts = 0; // ja desenhados neste quadro (cursor)
 uint32_t gPendingVerts = 0; // acumulados aguardando flush
 bool     gOverflowLogged = false;
+bool     gForaDoQuadroLogado = false;
 
 // **O lote pendente e de UMA topologia so.** Ele nao pode ser desenhado por dois
 // pipelines, entao trocar de forma esvazia o que estava acumulado.
@@ -57,6 +60,20 @@ std::vector<LineVertex> gStaging;
 float2 toNdc(const forgeline::Point p)
 {
     return { p.x / gWidth * 2.0f - 1.0f, 1.0f - p.y / gHeight * 2.0f };
+}
+
+bool foraDoQuadro()
+{
+    if (gCmd != NULL && gWidth > 0.0f && gHeight > 0.0f)
+    {
+        return false;
+    }
+    if (!gForaDoQuadroLogado)
+    {
+        LOGF(eWARNING, "[forgeline] drawLine/drawTriangle fora do quadro - desenhe no draw() da cena");
+        gForaDoQuadroLogado = true;
+    }
+    return true;
 }
 
 } // namespace
@@ -178,15 +195,28 @@ void unload(const ReloadDesc* reloadDesc)
         return;
     }
 
+    // Ver o mesmo ponto no `forgesprite`: zerar depois de remover.
     if (reloadDesc->mType & (RELOAD_TYPE_SHADER | RELOAD_TYPE_RENDERTARGET))
     {
-        removePipeline(gRenderer, gTrianglePipeline);
-        removePipeline(gRenderer, gPipeline);
+        if (gTrianglePipeline)
+        {
+            removePipeline(gRenderer, gTrianglePipeline);
+            gTrianglePipeline = NULL;
+        }
+        if (gPipeline)
+        {
+            removePipeline(gRenderer, gPipeline);
+            gPipeline = NULL;
+        }
     }
 
     if (reloadDesc->mType & RELOAD_TYPE_SHADER)
     {
-        removeShader(gRenderer, gShader);
+        if (gShader)
+        {
+            removeShader(gRenderer, gShader);
+            gShader = NULL;
+        }
     }
 }
 
@@ -204,7 +234,8 @@ void begin(Cmd* cmd, const float width, const float height, const uint32_t frame
     gFlushedVerts = 0;
     gPendingVerts = 0;
     gPendingIsTriangle = false;
-    gOverflowLogged = false;
+    // Ver o mesmo ponto no `forgesprite`: o log e uma vez por EXECUCAO, e nao
+    // por quadro. O numero por quadro e o `Stats::dropped`, que ja existe aqui.
 
     gLastFrame = gCurrent;
     gCurrent = {};
@@ -212,7 +243,7 @@ void begin(Cmd* cmd, const float width, const float height, const uint32_t frame
 
 void drawLine(const Point from, const Point to, const uint32_t colorAbgr)
 {
-    if (!gEnabled)
+    if (!gEnabled || foraDoQuadro())
     {
         return;
     }
@@ -272,7 +303,7 @@ void drawTriangle(const Point a, const Point b, const Point c, const uint32_t co
 void drawTriangle(const Point a, const Point b, const Point c, const uint32_t colorA, const uint32_t colorB,
                   const uint32_t colorC)
 {
-    if (!gEnabled)
+    if (!gEnabled || foraDoQuadro())
     {
         return;
     }
@@ -311,6 +342,11 @@ void flush()
     {
         return;
     }
+
+    // Ponte 2D = OVERLAY. Com profundidade ligada, este e o ponto em que o quadro
+    // troca para o passe sem depth (ver `forgeframe::enterOverlay`). Sem
+    // profundidade, e uma comparacao e volta.
+    forgeframe::enterOverlay();
 
     // copia so o lote pendente para o trecho deste frame, a partir do cursor
     BufferUpdateDesc update = { gVertexBuffer, (uint64_t)(gBaseVertex + gFlushedVerts) * sizeof(LineVertex),
