@@ -18,7 +18,7 @@ Separar responsabilidades entre os projetos:
 - jogos (`8puzzle`, `spaceinvaders`, `asteroids`, ...): dominio, regras,
   cenas concretas e assets de cada jogo.
 
-## Conteudo (0.22.1)
+## Conteudo (0.23.0)
 
 > **A versao que o BUILD le esta no `TheForgeCommon.props`**
 > (`TheForgeCommonVersion`), e ela e a fonte. O numero deste titulo e prosa para
@@ -28,11 +28,47 @@ Separar responsabilidades entre os projetos:
 > `<TheForgeCommonExpectedVersion>` no `.vcxproj` dele, e o build falha na
 > divergencia. Quem nao declara nada nao ganha conferencia — e aditivo.
 
-> **Nota de manutencao:** as secoes abaixo pulam da 0.22.1 para a 0.10.0. As
+> **Nota de manutencao:** as secoes abaixo pulam da 0.23.0 para a 0.10.0. As
 > versoes 0.11.0 a 0.15.0 existem no repositorio (ver `git log`) mas nunca
 > ganharam secao aqui — `Paint-Mask`, o ARRASTAR, o triangulo do `forgeline`, os
 > contadores de lote e a cor por vertice. A lacuna e anterior a 0.16.0 e fica
 > registrada em vez de continuada em silencio.
+
+### Novo na 0.23.0
+
+- **O uniforme do `forgemesh` separado por FREQUENCIA** (task 18). Eram tres
+  cadencias num buffer so, chamado `PerFrame` e ligado **por desenho**.
+
+  | conjunto | o que tem | ligado |
+  |---|---|---|
+  | `PerFrame` | camera, luz, ambiente, modo de conferencia | uma vez por quadro |
+  | `PerBatch` | material: fator de cor + os dois mapas | quando o material muda |
+  | `PerDraw` | a matriz de modelo | por objeto |
+
+  **O que encolheu:** os buffers de quadro passaram de 128 para **2**; o buffer
+  por desenho, de 192 para **64 bytes**; a luz deixou de ser copiada para
+  dentro de cada corpo desenhado.
+
+  **CONTRATO NOVO, e ele muda comportamento:** camera, luz, ambiente e modo vao
+  a GPU no **primeiro `draw` do quadro**. Mexer neles depois nao tem efeito
+  naquele quadro — antes tinha, por acidente, porque cada objeto levava a
+  propria copia. Os quatro setters **avisam uma vez** quando chegam tarde.
+
+  **Uma inversao registrada:** o modo de conferencia saiu do `w` do fator de cor
+  (onde **zero** ligava) para `modoDeConferencia.x` (onde **diferente de zero**
+  liga). Escrito nos dois lados: sentido invertido aqui nao da erro, da a imagem
+  errada.
+
+  **O que isto libera:** a task 14 (skinning) tem onde por as matrizes de junta
+  — um array por objeto animado cabe no `PerDraw`, sem uma quarta cadencia
+  empilhada.
+
+  Nenhum jogo 2D e afetado: tudo vive dentro do `forgemesh`, que so existe com
+  `mesh.enabled = true`.
+
+- **`TheForgeCommonVersion` no `.props`** (task 21, item 3): a arvore passa a
+  dizer que versao e, e um consumidor pode declarar
+  `TheForgeCommonExpectedVersion` para o build falhar na divergencia. Opt-in.
 
 ### Novo na 0.22.1
 

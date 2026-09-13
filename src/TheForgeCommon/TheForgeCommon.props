@@ -62,7 +62,7 @@
          **Esta propriedade passa a ser a FONTE.** O numero do README e prosa
          para quem le; este e o que o build ve. Quando subir a versao, suba os
          dois — e o `README.md` diz que este manda. -->
-    <TheForgeCommonVersion>0.22.1</TheForgeCommonVersion>
+    <TheForgeCommonVersion>0.23.0</TheForgeCommonVersion>
   </PropertyGroup>
 
   <!-- As pontes de desenho e o casco da janela: as unidades que TODO consumidor

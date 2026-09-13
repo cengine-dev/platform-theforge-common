@@ -22,7 +22,11 @@
 // `RGB = XYZ` -- que e o que quase todo tutorial diz -- ilumina para o lado
 // errado, e a imagem continua parecendo uma imagem com relevo.
 //
-// ## O modo de CONFERENCIA (`albedo.w == 0`)
+// ## O modo de CONFERENCIA (`gQuadro.modoDeConferencia.x != 0`)
+//
+// **Ele mora no PerFrame** (task 18), e nao no material: e uma chave de CENA,
+// que o lab liga com uma tecla. Ate a 0.22.1 viajava no `w` do fator de cor,
+// misturado com dado de material -- e o sentido era invertido (`0` ligava).
 //
 // Com o material desligado, a cor E `normal * 0.5 + 0.5`, **crua, sem passar
 // pela luz** -- o instrumento que os degraus 04, 05 e 06 usaram. Ele permite
@@ -89,7 +93,7 @@ float4 PS_MAIN(PSInput In)
     // --- a luz ---
     //
     // `luzDirecao.xyz` aponta **de onde a luz vem**, entao o `dot` e direto.
-    float nDotL = max(dot(n, gMalha.luzDirecao.xyz), 0.0f);
+    float nDotL = max(dot(n, gQuadro.luzDirecao.xyz), 0.0f);
 
     // **O `1/pi` NAO e cosmetico.** A `intensity` da direcional e IRRADIANCIA
     // (W/m2), que e o que o `energy` do Sun do Blender significa; a radiancia
@@ -98,14 +102,14 @@ float4 PS_MAIN(PSInput In)
     // Sem esta divisao, os numeros do rig (intensidade 3.0, albedo 0.75) dao
     // **2.39** numa face totalmente iluminada, e saturam a partir de
     // `nDotL = 0.384` -- toda face a menos de 67 graus da luz sai BRANCO PURO.
-    float3 direta = gMalha.luzCor.rgb * gMalha.luzCor.a * nDotL * (1.0f / PI);
+    float3 direta = gQuadro.luzCor.rgb * gQuadro.luzCor.a * nDotL * (1.0f / PI);
 
     // **A ambiente NAO divide.** Para um ambiente uniforme de radiancia L, a
     // irradiancia e `pi * L`, e o `pi` cancela com o do BSDF.
-    float3 ambiente = gMalha.ambiente.rgb * gMalha.ambiente.a;
+    float3 ambiente = gQuadro.ambiente.rgb * gQuadro.ambiente.a;
 
     // --- a cor base: mapa vezes fator ---
-    float3 cor = SampleTex2D(gMapaDeCor, gSamplerTrilinearWrap, In.UV).rgb * gMalha.albedo.rgb;
+    float3 cor = SampleTex2D(gMapaDeCor, gSamplerTrilinearWrap, In.UV).rgb * gMaterial.baseColor.rgb;
 
     // `albedo.w == 0` = modo de conferencia: a cor E a normal (a do VERTICE,
     // sem o mapa -- e a malha que se quer conferir, nao o material).
@@ -119,7 +123,7 @@ float4 PS_MAIN(PSInput In)
     // Nos degraus 04 e 05 do `diorama` estava certo por acidente: nao havia luz
     // nenhuma. A task 13 acrescentou a luz e o instrumento de medicao passou a
     // depender do que ele deveria isolar, sem que nada acusasse.
-    if (gMalha.albedo.a < 0.5f)
+    if (gQuadro.modoDeConferencia.x > 0.5f)
     {
         RETURN(float4(normalize(In.Normal) * 0.5f + 0.5f, 1.0f));
     }

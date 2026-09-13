@@ -64,3 +64,14 @@ onde antes de escolher como entregar.**
 
 Essa decisao virou a **task 18** (frequencias do uniforme), e ela vem primeiro.
 O gatilho desta aqui continua valendo, mas a ordem agora e `12 -> 18 -> 17`.
+
+## E ENCOLHEU de volta com a task 18 (2026-09-13)
+
+A task 18 tirou do buffer por desenho tudo o que nao era do objeto. Ele passou
+de **192 para 64 bytes** e voltou a ser homogeneo: so a matriz de modelo.
+
+Com isso a troca de mecanica (offset dinamico ou buffer estruturado) voltou a
+ser a troca **mecanica** que esta task previa originalmente — a complicacao que
+a task 13 tinha introduzido saiu.
+
+O gatilho continua o mesmo: >50 objetos por quadro, ou `Stats::dropped != 0`.

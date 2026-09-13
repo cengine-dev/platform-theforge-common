@@ -24,7 +24,7 @@ The Forge usado pelos jogos de estudo.
 | 15 | [forgemesh: variantes, e um layout de vertice SO](15-forgemesh-variantes.md) | **15a done (0.20.1); 15b espera a task 12** | Plataforma / 3D |
 | 16 | [O casco ganha um ALVO DE BUILD](16-alvo-de-build.md) | **done (0.20.0)** | Plataforma / Infra |
 | 17 | [Como o forgemesh entrega a matriz por objeto](17-instancias-do-forgemesh.md) | **adiada, com gatilho** | Plataforma / 3D |
-| 18 | [O conjunto se chama `PerFrame` e nao e](18-frequencias-do-uniforme.md) | **todo — a 12 confirmou; pronta** | Plataforma / 3D |
+| 18 | [O conjunto se chama `PerFrame` e nao e](18-frequencias-do-uniforme.md) | **done (0.23.0)** | Plataforma / 3D |
 | 19 | [O modo de conferencia nao devia ser um `if` por pixel](19-o-modo-de-conferencia.md) | **todo — espera a 15b** | Plataforma / 3D |
 | 20 | [Liberar malha e material](20-liberar-malha-e-material.md) | **todo** — item de spec da 11 nunca feito | Plataforma / 3D |
 | 21 | [O casco como BIBLIOTECA](21-o-casco-como-biblioteca.md) | **todo** — proposta escrita (revisao arquitetural 3.1/3.2) | Plataforma / Infra |

@@ -54,7 +54,11 @@ VSOutput VS_MAIN(VSInput In)
 {
     INIT_MAIN;
     VSOutput Out;
-    Out.Position = mul(gMalha.mvp, float4(In.Position, 1.0f));
+    // **DUAS multiplicacoes, e nao uma** (task 18). A `viewProj` vive no
+    // conjunto PerFrame e a `modelo` no PerDraw, porque mudam em cadencias
+    // diferentes. Ate a 0.22.1 a CPU compunha `mvp` e mandava uma matriz so --
+    // o que custava reescrever a camera dentro de cada objeto.
+    Out.Position = mul(gQuadro.viewProj, mul(gObjeto.modelo, float4(In.Position, 1.0f)));
     // Desempacota a normal octaedral e a leva ao espaco de MUNDO.
     //
     // O `0.0f` na quarta componente e o que faz disto uma DIRECAO e nao um
@@ -62,7 +66,7 @@ VSOutput VS_MAIN(VSInput In)
     // ganharia a posicao do objeto e a iluminacao mudaria com a translacao --
     // uma imagem plausivel, e errada.
     const float3 normalDeModelo = decodeDir(unpackUnorm2x16(In.Normal));
-    Out.Normal = mul(gMalha.modelo, float4(normalDeModelo, 0.0f)).xyz;
+    Out.Normal = mul(gObjeto.modelo, float4(normalDeModelo, 0.0f)).xyz;
 
     // A tangente vai pelo mesmo caminho. **A HANDEDNESS se perdeu**: o glTF
     // guarda a tangente como `float4` com `w = +-1` dizendo de que lado fica a
@@ -70,7 +74,7 @@ VSOutput VS_MAIN(VSInput In)
     // direcao. A bitangente e reconstruida como `cross(N, T)` no fragment, o que
     // assume `w = +1` -- e erra o sinal em malha com UV espelhada.
     const float3 tangenteDeModelo = decodeDir(unpackUnorm2x16(In.Tangent));
-    Out.Tangent = mul(gMalha.modelo, float4(tangenteDeModelo, 0.0f)).xyz;
+    Out.Tangent = mul(gObjeto.modelo, float4(tangenteDeModelo, 0.0f)).xyz;
 
     // `unpack2Floats` e `unpackHalf2x16`: a UV NAO e unorm (pode passar de 1
     // quando a textura repete), entao usar o `unpackUnorm2x16` da normal aqui

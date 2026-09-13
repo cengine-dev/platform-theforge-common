@@ -213,10 +213,23 @@ inline bool gEnabled = false;
 /// caminho que menos se olha.
 inline bool gAlocado = false;
 
-inline Shader*        gShader = NULL;
-inline Pipeline*      gPipeline = NULL;
-inline DescriptorSet* gConjunto = NULL;
-inline Buffer**       gUniformes = NULL; // (frameCount x maxInstances)
+inline Shader*   gShader = NULL;
+inline Pipeline* gPipeline = NULL;
+
+// **Um conjunto por FREQUENCIA** (task 18). Ate a 0.22.1 havia um so, chamado
+// `PerFrame` e ligado por DESENHO, carregando as tres cadencias juntas.
+inline DescriptorSet* gConjuntoDoQuadro = NULL;  // camera + luz: frameCount
+inline DescriptorSet* gConjuntoDeMaterial = NULL; // material: maxMaterials + 1
+inline DescriptorSet* gConjuntoDoObjeto = NULL;  // a modelo: frameCount x maxInstances
+
+inline Buffer** gCbDoQuadro = NULL;    // frameCount
+inline Buffer** gCbDoMaterial = NULL;  // maxMaterials + 1
+inline Buffer** gCbDoObjeto = NULL;    // frameCount x maxInstances
+
+// O `PerFrame` e escrito UMA vez por quadro, no primeiro `draw`. Ver o
+// comentario do `draw` sobre por que isso vira um contrato para a cena.
+inline bool gQuadroEscrito = false;
+inline bool gAvisouSetterTardio = false;
 
 inline Geometry** gMalhas = NULL;
 inline uint32_t   gMalhaCount = 0;
@@ -224,11 +237,9 @@ inline uint32_t   gMalhaCount = 0;
 // Os materiais. O indice 0 do descriptor set e sempre o PADRAO (mapa de cor
 // branco 1x1, mapa de normal plano 1x1); os carregados vem depois. Por isso o
 // handle publico `h` mora no slot `h + 1`.
-inline DescriptorSet* gConjuntoDeMaterial = NULL;
-inline Texture**      gTexturas = NULL; // 2 por material carregado
+inline Texture** gTexturas = NULL; // 2 por material carregado
 inline Texture*       gCorPadrao = NULL;
 inline Texture*       gNormalPadrao = NULL;
-inline float4*        gFatores = NULL; // baseColorFactor por material
 inline uint32_t       gMaterialCount = 0;
 inline MaterialHandle gMaterialDoQuadro = kSemMaterial;
 
@@ -307,15 +318,65 @@ inline Texture* criarTextura1x1(const uint8_t r, const uint8_t g, const uint8_t 
     return textura;
 }
 
-/// Liga os dois mapas de um slot do descriptor set de material.
+/// Cria um vetor de constant buffers persistentemente mapeados.
+///
+/// Os tres conjuntos (quadro, material, objeto) usam a mesma mecanica e
+/// diferem so na CONTAGEM e no tamanho -- que e a task 18 em uma frase.
+inline Buffer** criarConstantBuffers(const uint32_t quantos, const uint64_t tamanho, const char* nome)
+{
+    Buffer** buffers = (Buffer**)tf_calloc(quantos, sizeof(Buffer*));
+    for (uint32_t i = 0; i < quantos; ++i)
+    {
+        BufferLoadDesc cbDesc = {};
+        cbDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        cbDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_CPU_TO_GPU;
+        cbDesc.mDesc.mFlags = BUFFER_CREATION_FLAG_PERSISTENT_MAP_BIT;
+        cbDesc.mDesc.mSize = tamanho;
+        cbDesc.mDesc.pName = nome;
+        cbDesc.ppBuffer = &buffers[i];
+        addResource(&cbDesc, NULL);
+    }
+    return buffers;
+}
+
+inline void liberarConstantBuffers(Buffer**& buffers, const uint32_t quantos)
+{
+    if (buffers == NULL)
+    {
+        return;
+    }
+    for (uint32_t i = 0; i < quantos; ++i)
+    {
+        if (buffers[i])
+        {
+            removeResource(buffers[i]);
+        }
+    }
+    tf_free(buffers);
+    buffers = NULL;
+}
+
+/// Escreve uma struct no constant buffer dado.
+template <typename T>
+inline void escreverCb(Buffer* destino, const T& dado)
+{
+    BufferUpdateDesc atualizacao = { destino };
+    beginUpdateResource(&atualizacao);
+    memcpy(atualizacao.pMappedData, &dado, sizeof(T));
+    endUpdateResource(&atualizacao);
+}
+
+/// Liga os dois mapas e o fator de um slot do descriptor set de material.
 inline void ligarMaterial(const uint32_t slot, Texture* cor, Texture* normal)
 {
-    DescriptorData mapas[2] = {};
-    mapas[0].mIndex = SRT_RES_IDX(MeshSrtData, PerBatch, gMapaDeCor);
-    mapas[0].ppTextures = &cor;
-    mapas[1].mIndex = SRT_RES_IDX(MeshSrtData, PerBatch, gMapaDeNormal);
-    mapas[1].ppTextures = &normal;
-    updateDescriptorSet(gRenderer, slot, gConjuntoDeMaterial, 2, mapas);
+    DescriptorData recursos[3] = {};
+    recursos[0].mIndex = SRT_RES_IDX(MeshSrtData, PerBatch, gMaterial);
+    recursos[0].ppBuffers = &gCbDoMaterial[slot];
+    recursos[1].mIndex = SRT_RES_IDX(MeshSrtData, PerBatch, gMapaDeCor);
+    recursos[1].ppTextures = &cor;
+    recursos[2].mIndex = SRT_RES_IDX(MeshSrtData, PerBatch, gMapaDeNormal);
+    recursos[2].ppTextures = &normal;
+    updateDescriptorSet(gRenderer, slot, gConjuntoDeMaterial, 3, recursos);
 }
 
 } // namespace detalhe
@@ -337,7 +398,6 @@ inline void init(Renderer* renderer, const MeshBatcherDesc& desc)
     detalhe::gMalhaCount = 0;
 
     detalhe::gTexturas = (Texture**)tf_calloc(desc.maxMaterials * 2u, sizeof(Texture*));
-    detalhe::gFatores = (float4*)tf_calloc(desc.maxMaterials, sizeof(float4));
     detalhe::gMaterialCount = 0;
 }
 
@@ -372,8 +432,6 @@ inline void exit()
     }
     tf_free(detalhe::gTexturas);
     detalhe::gTexturas = NULL;
-    tf_free(detalhe::gFatores);
-    detalhe::gFatores = NULL;
     detalhe::gMaterialCount = 0;
     detalhe::gRenderer = NULL;
     detalhe::gEnabled = false;
@@ -409,41 +467,58 @@ inline void load(const ReloadDesc* reloadDesc, const TinyImageFormat colorFormat
         shaderDesc.mFrag.pFileName = "mesh.frag";
         addShader(detalhe::gRenderer, &shaderDesc, &detalhe::gShader);
 
-        DescriptorSetDesc conjuntoDesc = SRT_SET_DESC(MeshSrtData, PerFrame, trechos, 0);
-        addDescriptorSet(detalhe::gRenderer, &conjuntoDesc, &detalhe::gConjunto);
+        const uint32_t quadros = detalhe::gDesc.frameCount;
+        const uint32_t materiais = detalhe::gDesc.maxMaterials + 1u; // +1 = o padrao
 
-        detalhe::gUniformes = (Buffer**)tf_calloc(trechos, sizeof(Buffer*));
-        for (uint32_t i = 0; i < trechos; ++i)
-        {
-            BufferLoadDesc cbDesc = {};
-            cbDesc.mDesc.mDescriptors = DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            cbDesc.mDesc.mMemoryUsage = RESOURCE_MEMORY_USAGE_CPU_TO_GPU;
-            cbDesc.mDesc.mFlags = BUFFER_CREATION_FLAG_PERSISTENT_MAP_BIT;
-            cbDesc.mDesc.mSize = sizeof(UniformeDaMalha);
-            cbDesc.mDesc.pName = "ForgeMesh CB";
-            cbDesc.ppBuffer = &detalhe::gUniformes[i];
-            addResource(&cbDesc, NULL);
-        }
+        // ---- PerFrame: camera e luz, UM por quadro em voo ----
+        //
+        // Eram `frameCount x maxInstances` ate a 0.22.1, porque a camera e a luz
+        // viajavam dentro do buffer de cada objeto. Com o default sao 2 em vez
+        // de 128.
+        DescriptorSetDesc quadroDesc = SRT_SET_DESC(MeshSrtData, PerFrame, quadros, 0);
+        addDescriptorSet(detalhe::gRenderer, &quadroDesc, &detalhe::gConjuntoDoQuadro);
+        detalhe::gCbDoQuadro =
+            detalhe::criarConstantBuffers(quadros, sizeof(UniformeDoQuadro), "ForgeMesh CB quadro");
+
+        // ---- PerDraw: a matriz de modelo, uma por (quadro x instancia) ----
+        DescriptorSetDesc objetoDesc = SRT_SET_DESC(MeshSrtData, PerDraw, trechos, 0);
+        addDescriptorSet(detalhe::gRenderer, &objetoDesc, &detalhe::gConjuntoDoObjeto);
+        detalhe::gCbDoObjeto =
+            detalhe::criarConstantBuffers(trechos, sizeof(UniformeDoObjeto), "ForgeMesh CB objeto");
+
+        // ---- PerBatch: o material ----
+        DescriptorSetDesc materialDesc = SRT_SET_DESC(MeshSrtData, PerBatch, materiais, 0);
+        addDescriptorSet(detalhe::gRenderer, &materialDesc, &detalhe::gConjuntoDeMaterial);
+        detalhe::gCbDoMaterial =
+            detalhe::criarConstantBuffers(materiais, sizeof(UniformeDoMaterial), "ForgeMesh CB material");
+
         waitForAllResourceLoads();
 
+        for (uint32_t i = 0; i < quadros; ++i)
+        {
+            DescriptorData p = {};
+            p.mIndex = SRT_RES_IDX(MeshSrtData, PerFrame, gQuadro);
+            p.ppBuffers = &detalhe::gCbDoQuadro[i];
+            updateDescriptorSet(detalhe::gRenderer, i, detalhe::gConjuntoDoQuadro, 1, &p);
+        }
         for (uint32_t i = 0; i < trechos; ++i)
         {
-            DescriptorData parametro = {};
-            parametro.mIndex = SRT_RES_IDX(MeshSrtData, PerFrame, gMalha);
-            parametro.ppBuffers = &detalhe::gUniformes[i];
-            updateDescriptorSet(detalhe::gRenderer, i, detalhe::gConjunto, 1, &parametro);
+            DescriptorData p = {};
+            p.mIndex = SRT_RES_IDX(MeshSrtData, PerDraw, gObjeto);
+            p.ppBuffers = &detalhe::gCbDoObjeto[i];
+            updateDescriptorSet(detalhe::gRenderer, i, detalhe::gConjuntoDoObjeto, 1, &p);
         }
 
-        // O conjunto de MATERIAL (task 12). `+1` porque o slot 0 e o padrao.
-        DescriptorSetDesc materialDesc =
-            SRT_SET_DESC(MeshSrtData, PerBatch, detalhe::gDesc.maxMaterials + 1u, 0);
-        addDescriptorSet(detalhe::gRenderer, &materialDesc, &detalhe::gConjuntoDeMaterial);
-
+        // O material (task 12). `+1` porque o slot 0 e o padrao.
         // Branco 1x1 e normal plana 1x1. A normal plana e `(0,0,1)` codificada
         // no swizzle `{x,x,x,y}` da `-pt --normalmap`: X e Y no meio da faixa
         // (128) e Z reconstruido como 1.
         detalhe::gCorPadrao = detalhe::criarTextura1x1(255, 255, 255, 255, "ForgeMesh cor padrao");
         detalhe::gNormalPadrao = detalhe::criarTextura1x1(128, 128, 128, 128, "ForgeMesh normal padrao");
+        // O material PADRAO: fator branco, mapas neutros.
+        UniformeDoMaterial padrao = {};
+        padrao.baseColor = float4(1.0f, 1.0f, 1.0f, 1.0f);
+        detalhe::escreverCb(detalhe::gCbDoMaterial[0], padrao);
         detalhe::ligarMaterial(0, detalhe::gCorPadrao, detalhe::gNormalPadrao);
 
         // Os materiais que ja tinham sido carregados voltam a ser ligados: o
@@ -500,8 +575,12 @@ inline void load(const ReloadDesc* reloadDesc, const TinyImageFormat colorFormat
 
         PipelineDesc desc = {};
         desc.mType = PIPELINE_TYPE_GRAPHICS;
+        // Os TRES conjuntos, cada um na sua cadencia (task 18). O primeiro
+        // argumento (`Persistent`) segue NULL: o modulo nao tem recurso que
+        // viva o programa inteiro.
         PIPELINE_LAYOUT_DESC(desc, NULL, SRT_LAYOUT_DESC(MeshSrtData, PerFrame),
-                             SRT_LAYOUT_DESC(MeshSrtData, PerBatch), NULL);
+                             SRT_LAYOUT_DESC(MeshSrtData, PerBatch),
+                             SRT_LAYOUT_DESC(MeshSrtData, PerDraw));
         GraphicsPipelineDesc& grafico = desc.mGraphicsDesc;
         grafico.mPrimitiveTopo = PRIMITIVE_TOPO_TRI_LIST;
         grafico.mRenderTargetCount = 1;
@@ -536,24 +615,18 @@ inline void unload(const ReloadDesc* reloadDesc)
     if (reloadDesc->mType & RELOAD_TYPE_SHADER)
     {
         const uint32_t trechos = detalhe::gDesc.frameCount * detalhe::gDesc.maxInstances;
-        if (detalhe::gUniformes)
+        detalhe::liberarConstantBuffers(detalhe::gCbDoQuadro, detalhe::gDesc.frameCount);
+        detalhe::liberarConstantBuffers(detalhe::gCbDoObjeto, trechos);
+        detalhe::liberarConstantBuffers(detalhe::gCbDoMaterial, detalhe::gDesc.maxMaterials + 1u);
+
+        for (DescriptorSet** conjunto: { &detalhe::gConjuntoDoQuadro, &detalhe::gConjuntoDeMaterial,
+                                         &detalhe::gConjuntoDoObjeto })
         {
-            for (uint32_t i = 0; i < trechos; ++i)
+            if (*conjunto)
             {
-                removeResource(detalhe::gUniformes[i]);
+                removeDescriptorSet(detalhe::gRenderer, *conjunto);
+                *conjunto = NULL;
             }
-            tf_free(detalhe::gUniformes);
-            detalhe::gUniformes = NULL;
-        }
-        if (detalhe::gConjunto)
-        {
-            removeDescriptorSet(detalhe::gRenderer, detalhe::gConjunto);
-            detalhe::gConjunto = NULL;
-        }
-        if (detalhe::gConjuntoDeMaterial)
-        {
-            removeDescriptorSet(detalhe::gRenderer, detalhe::gConjuntoDeMaterial);
-            detalhe::gConjuntoDeMaterial = NULL;
         }
         // As texturas PADRAO morrem com o conjunto; as dos materiais carregados
         // sobrevivem (sao dado, e nao recurso de pipeline) e sao religadas no
@@ -585,6 +658,7 @@ inline void begin(Cmd* cmd, const uint32_t frameIndex)
     detalhe::gCmd = cmd;
     detalhe::gFrameIndex = frameIndex;
     detalhe::gUsadas = 0;
+    detalhe::gQuadroEscrito = false;
 
     detalhe::gLastFrame = detalhe::gCurrent;
     detalhe::gCurrent = {};
@@ -713,8 +787,14 @@ inline void end() { detalhe::gCmd = NULL; }
 
     detalhe::gTexturas[h * 2u] = cor;
     detalhe::gTexturas[h * 2u + 1u] = normal;
-    detalhe::gFatores[h] = float4(material.baseColorFactor[0], material.baseColorFactor[1],
-                                  material.baseColorFactor[2], 1.0f);
+    // O FATOR vai para o constant buffer DO MATERIAL, uma vez, na carga (task
+    // 18). Ate a 0.22.1 ele era reescrito a cada desenho, dentro do buffer do
+    // objeto: dois corpos com o mesmo material escreviam o mesmo numero duas
+    // vezes, e "material" nao era uma unidade que se ligasse de uma vez.
+    UniformeDoMaterial uniforme = {};
+    uniforme.baseColor = float4(material.baseColorFactor[0], material.baseColorFactor[1],
+                                material.baseColorFactor[2], 1.0f);
+    detalhe::escreverCb(detalhe::gCbDoMaterial[h + 1u], uniforme);
 
     detalhe::ligarMaterial(h + 1u, cor ? cor : detalhe::gCorPadrao, normal ? normal : detalhe::gNormalPadrao);
 
@@ -737,10 +817,30 @@ inline void end() { detalhe::gCmd = NULL; }
 // --- desenho (modo imediato, dentro do quadro) ---
 
 /// A camera do quadro: `projecao * vista`. Vale ate a proxima chamada.
+/// Avisa, uma vez por execucao, quando estado de QUADRO chega depois de o
+/// quadro ja ter sido escrito.
+///
+/// Desde a task 18 a camera e a luz vao para a GPU **uma vez por quadro**, no
+/// primeiro `draw`. Mexer nelas depois disso nao tem efeito naquele quadro --
+/// antes tinha, porque cada objeto carregava a sua copia. E uma mudanca de
+/// contrato, e ela precisa falhar com voz em vez de ignorar em silencio.
+inline void avisarSeTardio(const char* quem)
+{
+    if (detalhe::gQuadroEscrito && !detalhe::gAvisouSetterTardio)
+    {
+        LOGF(eWARNING,
+             "[forgemesh] %s chamado DEPOIS do primeiro draw do quadro: sem efeito ate o proximo. "
+             "Estado de quadro (camera, luz, ambiente, modo) vai a GPU no primeiro desenho.",
+             quem);
+        detalhe::gAvisouSetterTardio = true;
+    }
+}
+
 inline void setCamera(const mat4& viewProj)
 {
     if (detalhe::gEnabled)
     {
+        avisarSeTardio("setCamera");
         detalhe::gViewProj = viewProj;
     }
 }
@@ -753,6 +853,7 @@ inline void setLight(const DirectionalLight& luz)
 {
     if (detalhe::gEnabled)
     {
+        avisarSeTardio("setLight");
         detalhe::gLuz = luz;
     }
 }
@@ -762,6 +863,7 @@ inline void setAmbient(const Ambient& ambiente)
 {
     if (detalhe::gEnabled)
     {
+        avisarSeTardio("setAmbient");
         detalhe::gAmbiente = ambiente;
     }
 }
@@ -772,6 +874,7 @@ inline void setModoDeConferencia(const ModoDeConferencia& modo)
 {
     if (detalhe::gEnabled)
     {
+        avisarSeTardio("setModoDeConferencia");
         detalhe::gModo = modo;
     }
 }
@@ -834,46 +937,69 @@ inline void draw(const Handle h, const mat4& model, const MaterialHandle materia
     const uint32_t trecho = detalhe::gFrameIndex * detalhe::gDesc.maxInstances + detalhe::gUsadas;
     ++detalhe::gUsadas;
 
-    UniformeDaMalha uniforme = {};
-    uniforme.mvp = detalhe::gViewProj * model;
-    // A modelo vai SEPARADA porque a normal precisa chegar ao espaco de mundo.
-    uniforme.modelo = model;
-
-    // **A negacao acontece aqui**, uma vez por desenho, e nao por pixel: o desc
-    // guarda "para onde a luz viaja" (convencao do Blender) e o shader quer "de
-    // onde ela vem", que e o sinal que o `dot(N, L)` espera.
+    // ---- o quadro, UMA vez (task 18) ----
     //
-    // `float4` e nao `vec4`: o `DATA(float4, ...)` do FSL expande, no lado C++,
-    // para o `float4` POD do ModifiedSonyMath -- so `float4x4` e remapeado (para
-    // `mat4`, em `fsl_srt.h:34`). Os dois tipos existem e nao se convertem.
-    const vec3  viaja = vec3(detalhe::gLuz.direction[0], detalhe::gLuz.direction[1], detalhe::gLuz.direction[2]);
-    const float comprimento = length(viaja);
-    const vec3  vem = (comprimento > 1e-6f) ? (-viaja / comprimento) : vec3(0.0f, 1.0f, 0.0f);
+    // Camera, luz, ambiente e o modo de conferencia vao a GPU no PRIMEIRO
+    // desenho do quadro, e nao em cada objeto. Antes da task 18 eles viajavam
+    // dentro do buffer de cada corpo: dois corpos, duas copias da mesma luz.
+    //
+    // **O contrato que isto cria para a cena:** estado de quadro tem de ser
+    // posto ANTES do primeiro `draw`. Chamar `setCamera`/`setLight` depois nao
+    // tem efeito naquele quadro, e os setters avisam (uma vez) quando isso
+    // acontece.
+    if (!detalhe::gQuadroEscrito)
+    {
+        UniformeDoQuadro quadro = {};
+        quadro.viewProj = detalhe::gViewProj;
 
-    uniforme.luzDirecao = float4(vem.getX(), vem.getY(), vem.getZ(), 0.0f); // w nao usado
-    uniforme.luzCor =
-        float4(detalhe::gLuz.color[0], detalhe::gLuz.color[1], detalhe::gLuz.color[2], detalhe::gLuz.intensity);
-    uniforme.ambiente = float4(detalhe::gAmbiente.color[0], detalhe::gAmbiente.color[1], detalhe::gAmbiente.color[2],
-                               detalhe::gAmbiente.intensity);
-    // O FATOR do material (o mapa vem pelo descriptor set), e a chave do modo de
-    // conferencia no `w`.
-    const bool   temMaterial = material < detalhe::gMaterialCount;
-    const float4 fator = temMaterial ? detalhe::gFatores[material] : float4(1.0f, 1.0f, 1.0f, 1.0f);
-    uniforme.albedo = float4(fator.x, fator.y, fator.z, detalhe::gModo.usarMaterial ? 1.0f : 0.0f);
+        // **A negacao acontece aqui**, uma vez por QUADRO agora: o desc guarda
+        // "para onde a luz viaja" (convencao do Blender) e o shader quer "de
+        // onde ela vem", que e o sinal que o `dot(N, L)` espera.
+        //
+        // `float4` e nao `vec4`: o `DATA(float4, ...)` do FSL expande, no lado
+        // C++, para o `float4` POD do ModifiedSonyMath -- so `float4x4` e
+        // remapeado (para `mat4`, `fsl_srt.h:34`). Os dois existem e nao se
+        // convertem.
+        const vec3  viaja = vec3(detalhe::gLuz.direction[0], detalhe::gLuz.direction[1], detalhe::gLuz.direction[2]);
+        const float comprimento = length(viaja);
+        const vec3  vem = (comprimento > 1e-6f) ? (-viaja / comprimento) : vec3(0.0f, 1.0f, 0.0f);
 
-    BufferUpdateDesc atualizacao = { detalhe::gUniformes[trecho] };
-    beginUpdateResource(&atualizacao);
-    memcpy(atualizacao.pMappedData, &uniforme, sizeof(uniforme));
-    endUpdateResource(&atualizacao);
+        quadro.luzDirecao = float4(vem.getX(), vem.getY(), vem.getZ(), 0.0f); // w nao usado
+        quadro.luzCor =
+            float4(detalhe::gLuz.color[0], detalhe::gLuz.color[1], detalhe::gLuz.color[2], detalhe::gLuz.intensity);
+        quadro.ambiente = float4(detalhe::gAmbiente.color[0], detalhe::gAmbiente.color[1],
+                                 detalhe::gAmbiente.color[2], detalhe::gAmbiente.intensity);
+        // `x != 0` LIGA a conferencia. O sentido inverteu em relacao ao
+        // `albedo.w` da 0.22.1, onde zero ligava -- e esta escrito nos dois
+        // lados.
+        quadro.modoDeConferencia = float4(detalhe::gModo.usarMaterial ? 0.0f : 1.0f, 0.0f, 0.0f, 0.0f);
+
+        detalhe::escreverCb(detalhe::gCbDoQuadro[detalhe::gFrameIndex], quadro);
+        detalhe::gQuadroEscrito = true;
+    }
+
+    // ---- o objeto ----
+    UniformeDoObjeto objeto = {};
+    objeto.modelo = model;
+    detalhe::escreverCb(detalhe::gCbDoObjeto[trecho], objeto);
+
+    // ---- o material ----
+    //
+    // O FATOR e escrito no `loadMaterial`, e nao aqui: ele muda quando o
+    // material muda, e nao quando um corpo e desenhado. Era essa a mistura de
+    // cadencias que a task 18 desfez.
+    const bool     temMaterial = material < detalhe::gMaterialCount;
+    const uint32_t slotDoMaterial = temMaterial ? (material + 1u) : 0u;
 
     Geometry* g = detalhe::gMalhas[h];
     cmdBindPipeline(detalhe::gCmd, detalhe::gPipeline);
-    cmdBindDescriptorSet(detalhe::gCmd, trecho, detalhe::gConjunto);
+    cmdBindDescriptorSet(detalhe::gCmd, detalhe::gFrameIndex, detalhe::gConjuntoDoQuadro);
 
-    // O material e o SLOT `h + 1`; o 0 e o padrao. Trocar o material de um
-    // objeto e trocar este indice -- **a geometria nao volta a passar**, que e o
-    // criterio 4 da task 12.
-    cmdBindDescriptorSet(detalhe::gCmd, temMaterial ? (material + 1u) : 0u, detalhe::gConjuntoDeMaterial);
+    // Trocar o material de um objeto e trocar este indice -- **a geometria nao
+    // volta a passar**, que e o criterio 4 da task 12.
+    cmdBindDescriptorSet(detalhe::gCmd, slotDoMaterial, detalhe::gConjuntoDeMaterial);
+    cmdBindDescriptorSet(detalhe::gCmd, trecho, detalhe::gConjuntoDoObjeto);
+
     cmdBindVertexBuffer(detalhe::gCmd, 1, &g->pVertexBuffers[0], g->mVertexStrides, NULL);
     cmdBindIndexBuffer(detalhe::gCmd, g->pIndexBuffer, g->mIndexType, 0);
     cmdDrawIndexed(detalhe::gCmd, g->mIndexCount, 0, 0);

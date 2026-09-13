@@ -1,6 +1,6 @@
 # 18 - O conjunto se chama `PerFrame` e nao e
 
-- **Status:** todo — **a task 12 chegou e confirmou o diagnostico**; pronta para ser feita
+- **Status:** **done (0.23.0)** — 2026-09-13
 - **Categoria:** Plataforma / 3D — divida das tasks 11 e 13
 - **Registrada em:** 2026-09-06, na revisao do degrau 06 do `diorama`
 - **Absorve parte da:** task 17 (instancias), que cresceu por causa disto
@@ -84,3 +84,60 @@ Mesma razao pela qual a 15b e a 17 esperam.
 2. A luz e escrita **uma vez por quadro**, e nao uma vez por objeto.
 3. A API publica (`setCamera`, `setLight`, `draw`) nao muda.
 4. Nenhum consumidor 2D e afetado.
+
+## Fechada em 2026-09-13
+
+Tres conjuntos, cada um na cadencia do proprio nome. Conferido no HLSL gerado:
+
+```
+CBUFFER(UniformeDoQuadro)    gQuadro   : register(b0, space1)   PerFrame
+CBUFFER(UniformeDoMaterial)  gMaterial : register(b0, space2)   PerBatch
+Tex2D(float4)                gMapaDeCor              (space2)
+Tex2D(float4)                gMapaDeNormal           (space2)
+CBUFFER(UniformeDoObjeto)    gObjeto   : register(b0, space3)   PerDraw
+```
+
+### O que encolheu
+
+| | antes | depois |
+|---|---|---|
+| buffers do QUADRO | 128 (dentro de cada objeto) | **2** (um por quadro em voo) |
+| buffer POR DESENHO | 192 bytes | **64** (so a matriz de modelo) |
+| escritas da luz por quadro | uma por corpo | **uma** |
+| escritas do fator de cor | uma por desenho | **uma, na carga do material** |
+
+### O contrato NOVO, e ele precisa ser dito
+
+Camera, luz, ambiente e o modo de conferencia vao a GPU **no primeiro `draw` do
+quadro**. Chamar `setCamera`/`setLight`/`setAmbient`/`setModoDeConferencia`
+depois disso nao tem efeito naquele quadro.
+
+Antes tinha, e por acidente: cada objeto carregava a propria copia, entao mexer
+no meio do quadro pegava a partir do proximo corpo. **Era um comportamento que
+ninguem tinha pedido e que ninguem podia explicar.**
+
+Como a mudanca e silenciosa para quem dependia dela, os quatro setters **avisam
+uma vez** quando chegam tarde:
+
+```
+[forgemesh] setCamera chamado DEPOIS do primeiro draw do quadro: sem efeito ate
+o proximo. Estado de quadro (camera, luz, ambiente, modo) vai a GPU no primeiro
+desenho.
+```
+
+### Uma inversao registrada
+
+O modo de conferencia mudou de lugar E de sentido: era o `w` do fator de cor,
+com **zero** ligando; agora e `modoDeConferencia.x`, com **diferente de zero**
+ligando. Esta escrito nos dois lados (o `.srt.h` e o `ForgeMesh.h`), porque um
+sentido invertido aqui nao da erro: da a imagem errada.
+
+### O que isto libera
+
+**A task 14 (skinning) tem onde por as matrizes de junta:** um array **por
+objeto animado** cabe no `PerDraw`, sem empilhar uma quarta cadencia num buffer
+que ja misturava tres.
+
+**A task 17 encolheu de novo:** o buffer por desenho e um terco do que era, e
+agora e homogeneo — trocar a mecanica (offset dinamico ou buffer estruturado)
+voltou a ser a troca mecanica que a task previa antes da task 13.
