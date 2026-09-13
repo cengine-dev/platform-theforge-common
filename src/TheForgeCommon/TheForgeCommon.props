@@ -51,6 +51,18 @@
        (que, num .vcxproj tipico, so existe DEPOIS dos property sheets). -->
   <PropertyGroup>
     <TheForgeCommonDir>$(MSBuildThisFileDirectory)</TheForgeCommonDir>
+
+    <!-- **A VERSAO QUE ESTA ARVORE E** (task 21, item 3).
+
+         Ate aqui ela existia numa linha do `README.md` (`## Conteudo (x.y.z)`),
+         que nenhum build le. O casco era a unica dependencia do ecossistema sem
+         nenhuma forma de versao alcancavel por maquina: 14 `.vcxproj` apontando
+         para `..\platform-theforge-common\` e ponto.
+
+         **Esta propriedade passa a ser a FONTE.** O numero do README e prosa
+         para quem le; este e o que o build ve. Quando subir a versao, suba os
+         dois — e o `README.md` diz que este manda. -->
+    <TheForgeCommonVersion>0.22.1</TheForgeCommonVersion>
   </PropertyGroup>
 
   <!-- As pontes de desenho e o casco da janela: as unidades que TODO consumidor
@@ -120,5 +132,37 @@
       <AdditionalIncludeDirectories>$(TheForgeCommonDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
+
+  <!-- ===================================================================
+       A CONFERENCIA, e ela e OPT-IN
+       ===================================================================
+
+       O consumidor declara a versao que espera:
+
+           <TheForgeCommonExpectedVersion>0.22.1</TheForgeCommonExpectedVersion>
+
+       e o build FALHA quando a arvore nao e essa. Quem nao declara nada nao
+       ganha conferencia nenhuma — entao isto e aditivo para os 14 consumidores
+       existentes, e nao muda o build de ninguem.
+
+       ## Por que isto NAO e a decisao da task 30
+
+       A task 30 da cengine decide o mecanismo de PINAGEM do ecossistema, entre
+       "o `.exe` segue a tag" (A) e "a arvore declara e o build confere" (C).
+       Esta conferencia nao escolhe: ela so torna a divergencia VISIVEL.
+
+       E ela resolve um caso que a pinagem por tag resolve mal: um consumidor
+       que esta CONSTRUINDO o casco junto com o proprio trabalho (o `diorama`,
+       nos degraus 08 e 09) nao pode pinar por tag sem publicar uma tag por
+       iteracao. Aqui ele declara um numero, e quando o casco se move o build
+       diz — e subir a expectativa custa uma linha, nao um release.
+
+       **Pina-se o que se consome; para o que se constroi junto, confere-se.** -->
+  <Target Name="TheForgeCommonConfereVersao" BeforeTargets="PrepareForBuild"
+          Condition="'$(TheForgeCommonExpectedVersion)' != ''">
+    <Error Condition="'$(TheForgeCommonExpectedVersion)' != '$(TheForgeCommonVersion)'"
+           Text="platform-theforge-common: a arvore e $(TheForgeCommonVersion), e este projeto espera $(TheForgeCommonExpectedVersion). Atualize TheForgeCommonExpectedVersion no .vcxproj depois de conferir o que mudou (README.md do casco), ou troque de checkout." />
+    <Message Importance="normal" Text="platform-theforge-common $(TheForgeCommonVersion) (conferida)" />
+  </Target>
 
 </Project>

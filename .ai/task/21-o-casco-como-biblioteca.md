@@ -95,7 +95,7 @@ e ela alcanca todo consumidor. As opcoes:
   nenhuma, e o `EngineManager` ja lanca em dois lugares. **Parece a saida certa,
   e ela nem precisa da engine.**
 
-### Para o (3): a versao que o build le
+### Para o (3): a versao que o build le — **FEITO em 2026-09-13**
 
 Uma propriedade no `.props` (`TheForgeCommonVersion`), mais a conferencia contra
 o `README.md` no mesmo espirito do `VersionTest` da cengine 0.17.0. Casa com a
@@ -119,3 +119,45 @@ nao deve escolher sozinha**.
    mesmo processo funciona ou recusa — nao "abre e fecha sozinho".
 4. A prova continua sendo por DIFF e por COMPILACAO (o link do `DioramaForge` nao
    fecha sem o The-Forge, que e projeto de terceiro).
+
+## O item (3) fechou (2026-09-13)
+
+O dono mandou fazer, e ele nao precisava esperar a task 30 como esta task supunha.
+
+**O que entrou:**
+
+- `TheForgeCommonVersion` no `.props` — a arvore passa a DIZER o que e, e o
+  `README.md` passa a apontar para ela como fonte;
+- uma conferencia **opt-in**: o consumidor declara
+  `TheForgeCommonExpectedVersion` e o build falha na divergencia. Quem nao
+  declara nada nao ganha conferencia — aditivo para os 14 consumidores.
+
+**Provado, e nao deduzido:** com a arvore em `0.23.0` e o `diorama` esperando
+`0.22.1`, o build parou com
+
+```
+error : platform-theforge-common: a arvore e 0.23.0, e este projeto espera
+0.22.1. Atualize TheForgeCommonExpectedVersion no .vcxproj depois de conferir o
+que mudou (README.md do casco), ou troque de checkout.
+```
+
+e com os numeros iguais ele imprime `platform-theforge-common 0.22.1
+(conferida)`.
+
+### Por que nao precisou esperar a task 30
+
+Esta task supunha que a versao dependia do MECANISMO de pinagem. Nao depende:
+**declarar** o que a arvore e, e **conferir** contra o que o consumidor espera,
+nao escolhe entre "o `.exe` segue a tag" (A) e "a arvore declara" (C). Ela so
+torna a divergencia visivel.
+
+E resolveu um caso que a pinagem por tag resolve mal, e que apareceu no mesmo
+dia: o `diorama` **constroi** o casco junto com o proprio trabalho (tasks 14,
+15b e 18 durante os degraus 08 e 09). Pinar por tag exigiria uma tag por
+iteracao; a conferencia custa uma linha para subir.
+
+> **A regra que saiu disto:** pina-se o que se CONSOME; para o que se CONSTROI
+> junto, confere-se. O `diorama` faz as duas: cengine por tag, casco por
+> conferencia.
+
+Restam o (1) (instancia) e o (2) (canal de erro).

@@ -20,6 +20,14 @@ Separar responsabilidades entre os projetos:
 
 ## Conteudo (0.22.1)
 
+> **A versao que o BUILD le esta no `TheForgeCommon.props`**
+> (`TheForgeCommonVersion`), e ela e a fonte. O numero deste titulo e prosa para
+> quem le; quando subir a versao, suba os dois.
+>
+> O consumidor que quiser ser avisado quando o casco se mover declara
+> `<TheForgeCommonExpectedVersion>` no `.vcxproj` dele, e o build falha na
+> divergencia. Quem nao declara nada nao ganha conferencia — e aditivo.
+
 > **Nota de manutencao:** as secoes abaixo pulam da 0.22.1 para a 0.10.0. As
 > versoes 0.11.0 a 0.15.0 existem no repositorio (ver `git log`) mas nunca
 > ganharam secao aqui — `Paint-Mask`, o ARRASTAR, o triangulo do `forgeline`, os
