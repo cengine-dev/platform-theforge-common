@@ -27,6 +27,9 @@ The Forge usado pelos jogos de estudo.
 | 18 | [O conjunto se chama `PerFrame` e nao e](18-frequencias-do-uniforme.md) | **todo — a 12 confirmou; pronta** | Plataforma / 3D |
 | 19 | [O modo de conferencia nao devia ser um `if` por pixel](19-o-modo-de-conferencia.md) | **todo — espera a 15b** | Plataforma / 3D |
 | 20 | [Liberar malha e material](20-liberar-malha-e-material.md) | **todo** — item de spec da 11 nunca feito | Plataforma / 3D |
+| 21 | [O casco como BIBLIOTECA](21-o-casco-como-biblioteca.md) | **todo** — proposta escrita (revisao arquitetural 3.1/3.2) | Plataforma / Infra |
+| 22 | [A tangente que nao veio](22-a-tangente-que-nao-veio.md) | **todo** — a 2a metade do achado 3.13 | Plataforma / 3D |
+| 23 | [O `.props` diz o que o casco TEM, e nao o que ele EXIGE](23-o-props-declara-o-que-exige.md) | **todo** — buraco da task 16 | Plataforma / Infra |
 
 ## As tres tasks de DIVIDA (15-17), registradas em 2026-09-06
 
